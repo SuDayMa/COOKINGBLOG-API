@@ -9,7 +9,8 @@ const router = express.Router();
 // ĐĂNG KÝ USER MỚI
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body || {};
+    // 👇 nhận thêm phone
+    const { name, email, password, phone } = req.body || {};
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Thiếu name / email / password' });
     }
@@ -25,7 +26,9 @@ router.post('/register', async (req, res) => {
       name,
       email,
       passwordHash,
-      role: 'user', // user thường
+      role: 'user',         // user thường
+      phone: phone || '',   // 👈 lưu phone (nếu có)
+      avatar: '',           // avatar default rỗng
     });
 
     const token = jwt.sign(
@@ -41,6 +44,7 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        phone: user.phone || '',
         avatar: user.avatar || '',
       },
     });
@@ -50,7 +54,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ĐĂNG NHẬP (đã có từ trước, nhắc lại cho đủ)
+// ĐĂNG NHẬP
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -81,6 +85,7 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        phone: user.phone || '',
         avatar: user.avatar || '',
       },
     });
