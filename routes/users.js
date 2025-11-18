@@ -3,9 +3,10 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
 import { auth, requireAdmin } from '../middleware/auth.js';
+import multer from "multer";
 
 const router = express.Router();
-
+const upload = multer({ dest: "uploads/" });
 /**
  * === ADMIN: QUẢN LÝ TẤT CẢ USER ===
  */
@@ -200,3 +201,28 @@ router.post('/me/change-password', auth, async (req, res) => {
 });
 
 export default router;
+
+//P PUT /users/me/avatar  (upload avatar cho chính mình)
+router.put("/avatar", auth, upload.single("avatar"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: `/uploads/${req.file.filename}` },
+      { new: true }
+    ).lean();
+
+    res.json({
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "",
+      avatar: user.avatar || "",
+      role: user.role,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Server error" });
+  }
+});
