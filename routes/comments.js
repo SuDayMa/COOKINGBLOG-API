@@ -77,7 +77,7 @@ router.post("/", auth, async (req, res) => {
     status: "visible",
   });
 
-  // notification cho chủ post (nếu có model Notification)
+  // notification cho chủ post 
   if (post.user_id !== req.user.id) {
     await Notification.create({
       kind: "comment",

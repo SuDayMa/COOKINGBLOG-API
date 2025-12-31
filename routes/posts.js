@@ -1,11 +1,26 @@
 const express = require("express");
 const auth = require("../middleware/auth");
+const adminOnly = require("../middleware/adminOnly");
+
 const Post = require("../models/Post");
 const User = require("../models/User");
 const Comment = require("../models/Comment");
 const SavedPost = require("../models/SavedPost");
 
 const router = express.Router();
+
+// ✅ helper chuẩn hoá URL ảnh/avatar
+function toFileUrl(req, value) {
+  if (!value) return null;
+
+  // nếu đã là URL tuyệt đối
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const clean = String(value).replace(/^\/+/, ""); // bỏ / đầu
+  const path = clean.startsWith("uploads/") ? clean : `uploads/${clean}`;
+
+  return `${req.protocol}://${req.get("host")}/${path}`;
+}
 
 // POST /api/posts (Private)
 router.post("/", auth, async (req, res) => {
@@ -22,6 +37,7 @@ router.post("/", auth, async (req, res) => {
       image: image ?? null,
       ingredients: ingredients ?? null,
       steps: steps ?? null,
+      status: "pending", // ✅ nếu model có status (admin duyệt)
     });
 
     return res.status(201).json({
@@ -33,11 +49,40 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// GET /api/posts (Public) pagination + search
+// ✅ ADMIN: PATCH /api/posts/:id/status
+router.patch("/:id/status", auth, adminOnly, async (req, res) => {
+  const { status } = req.body || {};
+  if (!["pending", "approved", "hidden"].includes(status)) {
+    return res.status(400).json({ success: false, message: "Invalid status" });
+  }
+
+  const post = await Post.findOne({ id: req.params.id });
+  if (!post) return res.status(404).json({ success: false, message: "Post not found" });
+
+  post.status = status;
+  await post.save();
+
+  return res.status(200).json({
+    success: true,
+    data: { id: post.id, status: post.status, updated_at: post.updated_at },
+  });
+});
+
+// ✅ ADMIN: DELETE /api/posts/:id/admin
+router.delete("/:id/admin", auth, adminOnly, async (req, res) => {
+  const post = await Post.findOne({ id: req.params.id }).select("id");
+  if (!post) return res.status(404).json({ success: false, message: "Post not found" });
+
+  await Post.deleteOne({ id: req.params.id });
+  return res.status(200).json({ success: true, message: "Deleted successfully" });
+});
+
+// GET /api/posts (Public) pagination + search + ✅join user + ✅url images
 router.get("/", async (req, res) => {
   const page = Math.max(parseInt(req.query.page || "1", 10), 1);
   const limit = Math.min(Math.max(parseInt(req.query.limit || "10", 10), 1), 50);
   const q = (req.query.q || "").trim();
+  const status = (req.query.status || "").trim(); // optional: pending|approved|hidden
 
   if (Number.isNaN(page) || Number.isNaN(limit)) {
     return res.status(400).json({ success: false, message: "Invalid page/limit" });
@@ -50,18 +95,43 @@ router.get("/", async (req, res) => {
       { description: new RegExp(q, "i") },
     ];
   }
+  if (status && ["pending", "approved", "hidden"].includes(status)) {
+    filter.status = status;
+  }
 
   const total = await Post.countDocuments(filter);
-  const items = await Post.find(filter)
+
+  const posts = await Post.find(filter)
     .sort({ created_at: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
-    .select("id title image created_at user_id");
+    .lean();
+
+  const userIds = [...new Set(posts.map((p) => p.user_id))];
+  const users = await User.find({ id: { $in: userIds } })
+    .select("id name avatar")
+    .lean();
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const items = posts.map((p) => {
+    const u = userMap.get(p.user_id);
+    return {
+      id: p.id,
+      title: p.title,
+      image: toFileUrl(req, p.image),
+      created_at: p.created_at,
+      user_id: p.user_id,
+      status: p.status,
+      user: u
+        ? { id: u.id, name: u.name, avatar: toFileUrl(req, u.avatar) }
+        : null,
+    };
+  });
 
   return res.status(200).json({ success: true, data: { page, limit, total, items } });
 });
 
-// ✅ GET /api/posts/:id/comments (Public) 
+// ✅ GET /api/posts/:id/comments (Public)
 router.get("/:id/comments", async (req, res) => {
   const post = await Post.findOne({ id: req.params.id }).select("id");
   if (!post) return res.status(404).json({ success: false, message: "Post not found" });
@@ -76,19 +146,20 @@ router.get("/:id/comments", async (req, res) => {
     .lean();
   const map = new Map(users.map((u) => [u.id, u]));
 
-  const data = comments.map((c) => ({
-    id: c.id,
-    content: c.content,
-    user: map.get(c.user_id)
-      ? { id: map.get(c.user_id).id, name: map.get(c.user_id).name }
-      : null,
-    created_at: c.created_at,
-  }));
+  const data = comments.map((c) => {
+    const u = map.get(c.user_id);
+    return {
+      id: c.id,
+      content: c.content,
+      user: u ? { id: u.id, name: u.name, avatar: toFileUrl(req, u.avatar) } : null,
+      created_at: c.created_at,
+    };
+  });
 
   return res.status(200).json({ success: true, data });
 });
 
-// ✅ GET /api/posts/:id/saved-count (Public) 
+// ✅ GET /api/posts/:id/saved-count (Public)
 router.get("/:id/saved-count", async (req, res) => {
   const post = await Post.findOne({ id: req.params.id }).select("id");
   if (!post) return res.status(404).json({ success: false, message: "Post not found" });
@@ -97,7 +168,7 @@ router.get("/:id/saved-count", async (req, res) => {
   return res.status(200).json({ success: true, data: { postId: req.params.id, count } });
 });
 
-// GET /api/posts/:id (Public) 
+// GET /api/posts/:id (Public) detail + ✅avatar+image URL
 router.get("/:id", async (req, res) => {
   const post = await Post.findOne({ id: req.params.id }).lean();
   if (!post) return res.status(404).json({ success: false, message: "Post not found" });
@@ -110,10 +181,11 @@ router.get("/:id", async (req, res) => {
       id: post.id,
       title: post.title,
       description: post.description,
-      image: post.image,
+      image: toFileUrl(req, post.image),
       ingredients: post.ingredients,
       steps: post.steps,
-      user: user ? { id: user.id, name: user.name, avatar: user.avatar } : null,
+      status: post.status,
+      user: user ? { id: user.id, name: user.name, avatar: toFileUrl(req, user.avatar) } : null,
       created_at: post.created_at,
     },
   });
@@ -155,29 +227,3 @@ router.delete("/:id", auth, async (req, res) => {
 });
 
 module.exports = router;
-const adminOnly = require("../middleware/adminOnly");
-
-// ✅ ADMIN: PATCH /api/posts/:id/status  body: { status: "pending|approved|hidden" }
-router.patch("/:id/status", auth, adminOnly, async (req, res) => {
-  const { status } = req.body || {};
-  if (!["pending", "approved", "hidden"].includes(status)) {
-    return res.status(400).json({ success: false, message: "Invalid status" });
-  }
-
-  const post = await Post.findOne({ id: req.params.id });
-  if (!post) return res.status(404).json({ success: false, message: "Post not found" });
-
-  post.status = status;
-  await post.save();
-
-  return res.status(200).json({ success: true, data: { id: post.id, status: post.status, updated_at: post.updated_at } });
-});
-
-// ✅ ADMIN: DELETE /api/posts/:id 
-router.delete("/:id/admin", auth, adminOnly, async (req, res) => {
-  const post = await Post.findOne({ id: req.params.id }).select("id");
-  if (!post) return res.status(404).json({ success: false, message: "Post not found" });
-
-  await Post.deleteOne({ id: req.params.id });
-  return res.status(200).json({ success: true, message: "Deleted successfully" });
-});
