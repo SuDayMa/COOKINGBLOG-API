@@ -1,12 +1,52 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const auth = require("../middleware/auth");
+const adminOnly = require("../middleware/adminOnly");
 const User = require("../models/User");
 const Post = require("../models/Post");
 
 const router = express.Router();
 
-// PUT /users/profile (Private)
+// ✅ ADMIN: GET /api/users?page&limit&q&blocked
+router.get("/", auth, adminOnly, async (req, res) => {
+  const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 50);
+  const q = (req.query.q || "").trim();
+  const blocked = req.query.blocked; // "true"/"false"/undefined
+
+  if (Number.isNaN(page) || Number.isNaN(limit)) {
+    return res.status(400).json({ success: false, message: "Invalid page/limit" });
+  }
+
+  const filter = {};
+  if (q) filter.$or = [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }];
+  if (blocked === "true") filter.is_blocked = true;
+  if (blocked === "false") filter.is_blocked = false;
+
+  const total = await User.countDocuments(filter);
+  const items = await User.find(filter)
+    .sort({ created_at: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .select("id name email avatar role is_blocked created_at");
+
+  return res.status(200).json({ success: true, data: { page, limit, total, items } });
+});
+
+// ✅ ADMIN: PATCH /api/users/:id/toggle-block
+router.patch("/:id/toggle-block", auth, adminOnly, async (req, res) => {
+  const u = await User.findOne({ id: req.params.id }).select("id is_blocked");
+  if (!u) return res.status(404).json({ success: false, message: "User not found" });
+
+  u.is_blocked = !u.is_blocked;
+  await u.save();
+
+  return res.status(200).json({ success: true, data: { id: u.id, is_blocked: u.is_blocked } });
+});
+
+/* ====== USER CONTRACTS (giữ nguyên) ====== */
+
+// PUT /api/users/profile (Private)
 router.put("/profile", auth, async (req, res) => {
   try {
     const { name, avatar, phone, bio } = req.body || {};
@@ -28,7 +68,7 @@ router.put("/profile", auth, async (req, res) => {
   }
 });
 
-// PUT /users/change-password (Private)
+// PUT /api/users/change-password (Private)
 router.put("/change-password", auth, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body || {};
@@ -51,21 +91,21 @@ router.put("/change-password", auth, async (req, res) => {
   }
 });
 
-// GET /users/:id (Public)
+// GET /api/users/:id (Public)
 router.get("/:id", async (req, res) => {
   const user = await User.findOne({ id: req.params.id }).select("id name avatar bio");
   if (!user) return res.status(404).json({ success: false, message: "User not found" });
   return res.status(200).json({ success: true, data: user });
 });
 
-// GET /users/:id/posts (Public)
+// GET /api/users/:id/posts (Public)
 router.get("/:id/posts", async (req, res) => {
   const user = await User.findOne({ id: req.params.id }).select("id");
   if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
   const items = await Post.find({ user_id: req.params.id })
     .sort({ created_at: -1 })
-    .select("id title image created_at");
+    .select("id title image created_at status");
 
   return res.status(200).json({ success: true, data: { user_id: req.params.id, items } });
 });

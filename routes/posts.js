@@ -61,7 +61,7 @@ router.get("/", async (req, res) => {
   return res.status(200).json({ success: true, data: { page, limit, total, items } });
 });
 
-// ✅ GET /api/posts/:id/comments (Public) - phải đặt TRƯỚC /:id
+// ✅ GET /api/posts/:id/comments (Public) 
 router.get("/:id/comments", async (req, res) => {
   const post = await Post.findOne({ id: req.params.id }).select("id");
   if (!post) return res.status(404).json({ success: false, message: "Post not found" });
@@ -88,7 +88,7 @@ router.get("/:id/comments", async (req, res) => {
   return res.status(200).json({ success: true, data });
 });
 
-// ✅ GET /api/posts/:id/saved-count (Public) - đặt TRƯỚC /:id
+// ✅ GET /api/posts/:id/saved-count (Public) 
 router.get("/:id/saved-count", async (req, res) => {
   const post = await Post.findOne({ id: req.params.id }).select("id");
   if (!post) return res.status(404).json({ success: false, message: "Post not found" });
@@ -97,7 +97,7 @@ router.get("/:id/saved-count", async (req, res) => {
   return res.status(200).json({ success: true, data: { postId: req.params.id, count } });
 });
 
-// GET /api/posts/:id (Public) - detail + user info
+// GET /api/posts/:id (Public) 
 router.get("/:id", async (req, res) => {
   const post = await Post.findOne({ id: req.params.id }).lean();
   if (!post) return res.status(404).json({ success: false, message: "Post not found" });
@@ -155,3 +155,29 @@ router.delete("/:id", auth, async (req, res) => {
 });
 
 module.exports = router;
+const adminOnly = require("../middleware/adminOnly");
+
+// ✅ ADMIN: PATCH /api/posts/:id/status  body: { status: "pending|approved|hidden" }
+router.patch("/:id/status", auth, adminOnly, async (req, res) => {
+  const { status } = req.body || {};
+  if (!["pending", "approved", "hidden"].includes(status)) {
+    return res.status(400).json({ success: false, message: "Invalid status" });
+  }
+
+  const post = await Post.findOne({ id: req.params.id });
+  if (!post) return res.status(404).json({ success: false, message: "Post not found" });
+
+  post.status = status;
+  await post.save();
+
+  return res.status(200).json({ success: true, data: { id: post.id, status: post.status, updated_at: post.updated_at } });
+});
+
+// ✅ ADMIN: DELETE /api/posts/:id 
+router.delete("/:id/admin", auth, adminOnly, async (req, res) => {
+  const post = await Post.findOne({ id: req.params.id }).select("id");
+  if (!post) return res.status(404).json({ success: false, message: "Post not found" });
+
+  await Post.deleteOne({ id: req.params.id });
+  return res.status(200).json({ success: true, message: "Deleted successfully" });
+});
