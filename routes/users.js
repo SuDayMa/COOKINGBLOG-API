@@ -1,228 +1,73 @@
-// routes/users.js
-import express from 'express';
-import bcrypt from 'bcryptjs';
-import { User } from '../models/User.js';
-import { auth, requireAdmin } from '../middleware/auth.js';
-import multer from "multer";
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const auth = require("../middleware/auth");
+const User = require("../models/User");
+const Post = require("../models/Post");
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" });
-/**
- * === ADMIN: QUẢN LÝ TẤT CẢ USER ===
- */
 
-// GET /users  (admin only)
-router.get('/', auth, requireAdmin, async (_req, res) => {
+// PUT /users/profile (Private)
+router.put("/profile", auth, async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 }).lean();
-    res.json(
-      users.map((u) => ({
-        id: String(u._id),
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        phone: u.phone || '',
-        avatar: u.avatar || '',
-        createdAt: u.createdAt,
-      }))
-    );
-  } catch (e) {
-    console.error('GET /users error', e);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// PATCH /users/:id  (update name/email/role/phone, admin only)
-router.patch('/:id', auth, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, email, role, phone } = req.body || {};
-
-    // Không cho tự hạ quyền admin của chính mình
-    if (String(req.user.id) === String(id) && role && role !== 'admin') {
-      return res
-        .status(400)
-        .json({ message: 'Không thể đổi role của chính mình khỏi admin.' });
-    }
-
+    const { name, avatar, phone, bio } = req.body || {};
     const update = {};
-    if (typeof name === 'string' && name.trim()) update.name = name.trim();
-    if (typeof email === 'string' && email.trim()) update.email = email.trim();
-    if (role === 'admin' || role === 'user') update.role = role;
-    if (typeof phone === 'string') update.phone = phone.trim();
+    if (name !== undefined) update.name = name;
+    if (avatar !== undefined) update.avatar = avatar;
+    if (phone !== undefined) update.phone = phone;
+    if (bio !== undefined) update.bio = bio;
 
-    const user = await User.findByIdAndUpdate(id, update, {
-      new: true,
-      runValidators: true,
-    }).lean();
+    const user = await User.findOneAndUpdate(
+      { id: req.user.id },
+      { $set: update },
+      { new: true }
+    ).select("id name email avatar phone bio created_at updated_at");
 
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    res.json({
-      id: String(user._id),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone || '',
-      avatar: user.avatar || '',
-      createdAt: user.createdAt,
-    });
+    return res.status(200).json({ success: true, data: user });
   } catch (e) {
-    console.error('PATCH /users/:id error', e);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(400).json({ success: false, message: "Invalid data" });
   }
 });
 
-// DELETE /users/:id  (admin only)
-router.delete('/:id', auth, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Không cho tự xoá chính mình
-    if (String(req.user.id) === String(id)) {
-      return res
-        .status(400)
-        .json({ message: 'Không thể tự xoá tài khoản của chính mình.' });
-    }
-
-    const user = await User.findByIdAndDelete(id).lean();
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    res.json({ success: true });
-  } catch (e) {
-    console.error('DELETE /users/:id error', e);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-/**
- * === USER TỰ QUẢN LÝ TÀI KHOẢN CỦA MÌNH (APP MOBILE) ===
- */
-
-// GET /users/me  (lấy thông tin user hiện tại)
-router.get('/me', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).lean();
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    res.json({
-      id: String(user._id),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone || '',
-      avatar: user.avatar || '',
-      createdAt: user.createdAt,
-    });
-  } catch (e) {
-    console.error('GET /users/me error', e);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// PUT /users/me  (update name/email/phone cho chính mình)
-router.put('/me', auth, async (req, res) => {
-  try {
-    const { name, email, phone, currentPassword } = req.body || {};
-
-    // Lấy user + passwordHash để check mật khẩu
-    const user = await User.findById(req.user.id).select('+passwordHash');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const emailChanged = typeof email === 'string' && email !== user.email;
-    const phoneChanged = typeof phone === 'string' && phone !== user.phone;
-
-    // Nếu đổi email hoặc phone thì bắt buộc nhập mật khẩu hiện tại
-    if (emailChanged || phoneChanged) {
-      if (!currentPassword) {
-        return res.status(400).json({
-          message: 'Cần mật khẩu hiện tại để đổi email / số điện thoại',
-        });
-      }
-      const ok = await bcrypt.compare(currentPassword, user.passwordHash);
-      if (!ok) {
-        return res.status(400).json({ message: 'Mật khẩu hiện tại không đúng' });
-      }
-    }
-
-    if (typeof name === 'string' && name.trim()) {
-      user.name = name.trim();
-    }
-    if (typeof email === 'string' && email.trim()) {
-      user.email = email.trim();
-    }
-    if (typeof phone === 'string') {
-      user.phone = phone.trim();
-    }
-
-    await user.save();
-
-    res.json({
-      id: String(user._id),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone || '',
-      avatar: user.avatar || '',
-      createdAt: user.createdAt,
-    });
-  } catch (e) {
-    console.error('PUT /users/me error', e);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// POST /users/me/change-password
-router.post('/me/change-password', auth, async (req, res) => {
+// PUT /users/change-password (Private)
+router.put("/change-password", auth, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body || {};
     if (!oldPassword || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: 'Thiếu oldPassword / newPassword' });
+      return res.status(400).json({ success: false, message: "Missing fields" });
     }
 
-    const user = await User.findById(req.user.id).select('+passwordHash');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const user = await User.findOne({ id: req.user.id });
+    if (!user) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const ok = await bcrypt.compare(oldPassword, user.passwordHash);
-    if (!ok) {
-      return res.status(400).json({ message: 'Mật khẩu hiện tại không đúng' });
-    }
+    const ok = await bcrypt.compare(oldPassword, user.password);
+    if (!ok) return res.status(403).json({ success: false, message: "Old password incorrect" });
 
-    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
-    res.json({ message: 'Đổi mật khẩu thành công' });
+    return res.status(200).json({ success: true, message: "Password changed successfully" });
   } catch (e) {
-    console.error('POST /users/me/change-password error', e);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-export default router;
-
-//P PUT /users/me/avatar  (upload avatar cho chính mình)
-router.put("/avatar", auth, upload.single("avatar"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { avatar: `/uploads/${req.file.filename}` },
-      { new: true }
-    ).lean();
-
-    res.json({
-      id: String(user._id),
-      name: user.name,
-      email: user.email,
-      phone: user.phone || "",
-      avatar: user.avatar || "",
-      role: user.role,
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Server error" });
-  }
+// GET /users/:id (Public)
+router.get("/:id", async (req, res) => {
+  const user = await User.findOne({ id: req.params.id }).select("id name avatar bio");
+  if (!user) return res.status(404).json({ success: false, message: "User not found" });
+  return res.status(200).json({ success: true, data: user });
 });
+
+// GET /users/:id/posts (Public)
+router.get("/:id/posts", async (req, res) => {
+  const user = await User.findOne({ id: req.params.id }).select("id");
+  if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+  const items = await Post.find({ user_id: req.params.id })
+    .sort({ created_at: -1 })
+    .select("id title image created_at");
+
+  return res.status(200).json({ success: true, data: { user_id: req.params.id, items } });
+});
+
+module.exports = router;
