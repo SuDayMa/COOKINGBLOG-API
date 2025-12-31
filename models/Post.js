@@ -1,19 +1,17 @@
-// models/Post.js (ESM)
-import mongoose from 'mongoose';
+const mongoose = require("mongoose");
+const { v4: uuidv4 } = require("uuid");
 
-const AuthorSchema = new mongoose.Schema({
-  id: String,
-  name: String,
-  avatar: String,
-}, { _id: false });
+const postSchema = new mongoose.Schema(
+  {
+    id: { type: String, default: uuidv4, unique: true, index: true },
+    user_id: { type: String, required: true, index: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, required: true },
+    image: { type: String, default: null },
+    ingredients: { type: String, default: null },
+    steps: { type: String, default: null },
+  },
+  { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
+);
 
-const PostSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: String,
-  ingredients: String,
-  steps: String,
-  imageUrl: String,
-  author: { type: AuthorSchema, required: true },
-}, { timestamps: true });
-
-export const Post = mongoose.model('Post', PostSchema);
+module.exports = mongoose.model("Post", postSchema);
