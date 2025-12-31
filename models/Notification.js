@@ -5,7 +5,6 @@ const notificationSchema = new mongoose.Schema(
   {
     id: { type: String, default: uuidv4, unique: true, index: true },
 
-    // theo contract: kind: 'post' | 'comment' (mày đang ghi nhầm uuid trong ERD)
     kind: { type: String, enum: ["post", "comment"], required: true },
 
     actor_id: { type: String, required: true, index: true },
