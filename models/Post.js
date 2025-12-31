@@ -10,6 +10,7 @@ const postSchema = new mongoose.Schema(
     image: { type: String, default: null },
     ingredients: { type: String, default: null },
     steps: { type: String, default: null },
+    status: { type: String, enum: ["pending", "approved", "hidden"], default: "approved", index: true },
   },
   { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );
