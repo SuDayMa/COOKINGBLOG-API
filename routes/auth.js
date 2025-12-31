@@ -1,107 +1,80 @@
 // routes/auth.js
-import express from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { User } from "../models/User.js";
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const auth = require("../middleware/auth");
 
 const router = express.Router();
 
-// helper để tạo token
 function signToken(user) {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("JWT_SECRET is not set");
-  }
   return jwt.sign(
-    { sub: String(user._id), role: user.role },
+    { id: user.id, email: user.email },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
   );
 }
 
-// ĐĂNG KÝ
+// POST /api/register
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body || {};
-
+    const { name, email, password } = req.body || {};
     if (!name || !email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Thiếu name / email / password" });
+      return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    const existing = await User.findOne({ email }).lean();
-    if (existing) {
-      return res.status(409).json({ message: "Email đã được sử dụng" });
+    const exists = await User.findOne({ email: email.toLowerCase() });
+    if (exists) {
+      return res.status(409).json({ success: false, message: "Email already exists" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email: email.toLowerCase(), password: hashed });
 
-    const user = await User.create({
-      name,
-      email,
-      passwordHash,
-      role: "user",
-      phone: phone || "",
-      avatar: "",
-    });
+    const access_token = signToken(user);
 
-    const token = signToken(user);
-
-    res.status(201).json({
-      token,
-      user: {
-        id: String(user._id),
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone || "",
-        avatar: user.avatar || "",
-      },
+    return res.status(201).json({
+      success: true,
+      data: { user: { id: user.id, name: user.name, email: user.email, access_token } }
     });
   } catch (e) {
-    console.error("register error", e);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// ĐĂNG NHẬP
+// POST /api/login
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email và mật khẩu là bắt buộc" });
+      return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    // cần lấy passwordHash => dùng select("+passwordHash") và KHÔNG lean
-    const user = await User.findOne({ email }).select("+passwordHash");
-    if (!user) {
-      return res.status(401).json({ message: "Sai email hoặc mật khẩu" });
-    }
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
-      return res.status(401).json({ message: "Sai email hoặc mật khẩu" });
-    }
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-    const token = signToken(user);
+    const access_token = signToken(user);
 
-    res.json({
-      token,
-      user: {
-        id: String(user._id),
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone || "",
-        avatar: user.avatar || "",
-      },
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: { id: user.id, name: user.name, email: user.email },
+        access_token
+      }
     });
   } catch (e) {
-    console.error("login error", e);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-export default router;
+// GET /api/me
+router.get("/me", auth, async (req, res) => {
+  const user = await User.findOne({ id: req.user.id }).select("id name email avatar phone bio");
+  if (!user) return res.status(401).json({ success: false, message: "Unauthorized" });
+  return res.status(200).json({ success: true, data: { id: user.id, name: user.name, email: user.email } });
+});
+
+module.exports = router;
