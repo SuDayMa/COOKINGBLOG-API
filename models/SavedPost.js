@@ -11,7 +11,6 @@ const savedPostSchema = new mongoose.Schema(
   { timestamps: false }
 );
 
-// tránh 1 user lưu 1 post nhiều lần
 savedPostSchema.index({ user_id: 1, post_id: 1 }, { unique: true });
 
 module.exports = mongoose.model("SavedPost", savedPostSchema);
