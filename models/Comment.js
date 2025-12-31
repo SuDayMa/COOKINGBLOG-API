@@ -7,6 +7,7 @@ const commentSchema = new mongoose.Schema(
     post_id: { type: String, required: true, index: true },
     user_id: { type: String, required: true, index: true },
     content: { type: String, required: true },
+    status: { type: String, enum: ["visible", "hidden"], default: "visible", index: true },
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } }
 );
