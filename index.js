@@ -1,35 +1,23 @@
-// index.js (ESM)
-import express from 'express';
-import cors from 'cors';
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import postsRouter from './routes/posts.js';
-import authRouter from './routes/auth.js';
-import usersRouter from './routes/users.js';
+// index.js
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
+require("dotenv").config();
 
+const apiRoutes = require("./routes/api"); // gom lại 1 file
 
-dotenv.config();
 const app = express();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use('/posts', postsRouter);
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ Mongo connected"))
+  .catch((e) => console.error("❌ Mongo error:", e.message));
 
-app.use('/auth', authRouter);
-app.use('/posts', postsRouter);
-app.use('/users', usersRouter); 
+app.use("/api", apiRoutes);
 
-const PORT = process.env.PORT || 4000;
-mongoose.connect(process.env.MONGODB_URI).then(() => {
-  app.listen(PORT, () => console.log(`API on http://localhost:${PORT}`));
-}).catch(err => {
-  console.error('MongoDB connect error:', err);
-  process.exit(1);
-});
+app.get("/", (req, res) => res.json({ ok: true, name: "CookingBlog API" }));
+
+const port = process.env.PORT || 5000;
+app.listen(port, () => console.log("🚀 Server running on port", port));
