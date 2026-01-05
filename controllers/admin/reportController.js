@@ -41,3 +41,33 @@ exports.getAllReports = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi lấy danh sách báo cáo" });
   }
 };
+
+exports.handleReport = async (req, res) => {
+  try {
+    const { status } = req.body; 
+    const { id } = req.params;
+
+    if (!["resolved", "dismissed"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
+    }
+
+    const report = await Report.findOneAndUpdate(
+      { id: id },
+      { 
+        status: status, 
+        processed_by: req.user.id 
+      },
+      { new: true }
+    );
+
+    if (!report) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Đã cập nhật trạng thái báo cáo thành công",
+      data: report 
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Lỗi khi xử lý báo cáo" });
+  }
+};
