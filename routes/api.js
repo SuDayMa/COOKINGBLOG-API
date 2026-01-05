@@ -23,7 +23,7 @@ router.use("/comments", commentRoutes);
 router.use("/saved", savedRoutes);
 router.use("/followers", followerRoutes);        
 router.use("/notifications", notificationRoutes); 
-
+router.use("/reports", reportRoutes);
 router.use("/admin", auth, adminOnly, adminRoutes);
 
 module.exports = router;
