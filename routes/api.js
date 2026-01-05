@@ -1,6 +1,5 @@
 // routes/api.js
 const express = require("express");
-const auth = require("../middleware/auth");
 
 const authRoutes = require("./auth");
 const userRoutes = require("./users");
@@ -8,51 +7,22 @@ const postRoutes = require("./posts");
 const commentRoutes = require("./comments");
 const savedRoutes = require("./saved");
 
+const auth = require("../middleware/auth");
+const adminOnly = require("../middleware/adminOnly");
+
+const adminRoutes = require("./admin"); // routes/admin/index.js
+
 const router = express.Router();
 
-/**
- * AUTH
- * POST /api/register
- * POST /api/login
- * GET  /api/me
- */
+// AUTH
 router.use("/", authRoutes);
 
-/**
- * USERS
- * PUT /api/users/profile
- * PUT /api/users/change-password
- * GET /api/users/:id
- * GET /api/users/:id/posts
- */
+// USER
 router.use("/users", userRoutes);
-
-/**
- * POSTS
- * POST /api/posts
- * PUT /api/posts/:id
- * DELETE /api/posts/:id
- * GET /api/posts/:id
- * GET /api/posts
- * GET /api/posts/:id/comments
- * GET /api/posts/:id/saved-count
- */
 router.use("/posts", postRoutes);
-
-/**
- * COMMENTS
- * POST /api/comments
- * DELETE /api/comments/:id
- */
 router.use("/comments", commentRoutes);
-
-/**
- * SAVED
- * POST /api/saved/toggle
- * GET /api/saved
- * GET /api/saved/check/:postId
- * DELETE /api/saved/:postId
- */
 router.use("/saved", savedRoutes);
+
+router.use("/admin", auth, adminOnly, adminRoutes);
 
 module.exports = router;
