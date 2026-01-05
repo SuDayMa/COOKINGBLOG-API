@@ -3,7 +3,6 @@ const User = require("../../models/User");
 const Post = require("../../models/Post");
 const { toPublicUrl } = require("../../utils/imageHelper");
 
-// Lấy danh sách bình luận (kèm User và Post)
 exports.getAdminComments = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
@@ -22,7 +21,6 @@ exports.getAdminComments = async (req, res) => {
       .limit(limit)
       .lean();
 
-    // Lấy Map User và Post để tối ưu hiệu năng
     const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     const postIds = [...new Set(rows.map(r => r.post_id).filter(Boolean))];
 

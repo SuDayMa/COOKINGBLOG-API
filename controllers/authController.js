@@ -78,7 +78,6 @@ exports.getMe = async (req, res) => {
   const user = await User.findOne({ id: req.user.id }).select("-password").lean();
   if (!user) return res.status(401).json({ success: false, message: "Không tìm thấy người dùng" });
   
-  // Format lại avatar trước khi gửi về
   user.avatar = toPublicUrl(req, user.avatar);
   
   res.status(200).json({ success: true, data: user });

@@ -3,12 +3,10 @@ const { toPublicUrl } = require("../../utils/imageHelper");
 
 exports.getAllUsers = async (req, res) => {
   try {
-    // 1. Lấy các tham số phân trang & tìm kiếm từ query
     const page = Math.max(parseInt(req.query.page || "1"), 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || "20"), 1), 50);
     const q = (req.query.q || "").trim();
 
-    // 2. Tạo bộ lọc tìm kiếm theo tên hoặc email
     const filter = {};
     if (q) {
       filter.$or = [
@@ -17,7 +15,6 @@ exports.getAllUsers = async (req, res) => {
       ];
     }
 
-    // 3. Thực hiện truy vấn
     const total = await User.countDocuments(filter);
     const users = await User.find(filter)
       .select("id name email role avatar created_at is_blocked") // Thêm is_blocked để admin dễ quản lý
@@ -26,7 +23,6 @@ exports.getAllUsers = async (req, res) => {
       .limit(limit)
       .lean();
 
-    // 4. Format lại URL ảnh
     const items = users.map(user => ({
       ...user,
       avatar: toPublicUrl(req, user.avatar)

@@ -1,4 +1,3 @@
-// routes/admin.js (Phiên bản tối ưu)
 const express = require("express");
 const router = express.Router();
 

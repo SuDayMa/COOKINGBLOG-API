@@ -3,7 +3,6 @@ const router = express.Router();
 const auth = require("../middleware/auth");
 const savedController = require("../controllers/savedController");
 
-// Tất cả các route này đều cần login
 router.use(auth);
 
 router.post("/toggle", savedController.toggleSave);

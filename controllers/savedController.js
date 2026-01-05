@@ -2,7 +2,6 @@ const SavedPost = require("../models/SavedPost");
 const Post = require("../models/Post");
 const { toPublicUrl } = require("../utils/imageHelper");
 
-// ✅ Toggle Save (Lưu hoặc Bỏ lưu)
 exports.toggleSave = async (req, res) => {
   try {
     const { postId } = req.body;
@@ -25,7 +24,6 @@ exports.toggleSave = async (req, res) => {
   }
 };
 
-// ✅ Lấy danh sách bài đã lưu (Phân trang + Ảnh chuẩn)
 exports.getSavedPosts = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1"), 1);
@@ -48,7 +46,7 @@ exports.getSavedPosts = async (req, res) => {
         if (!p) return null;
         return {
           ...p,
-          image: toPublicUrl(req, p.image) // Format lại URL ảnh
+          image: toPublicUrl(req, p.image) 
         };
       })
       .filter(Boolean);
@@ -59,7 +57,6 @@ exports.getSavedPosts = async (req, res) => {
   }
 };
 
-// ✅ Kiểm tra trạng thái đã lưu chưa
 exports.checkSaved = async (req, res) => {
   const exists = await SavedPost.findOne({ user_id: req.user.id, post_id: req.params.postId });
   res.json({ success: true, data: { postId: req.params.postId, saved: !!exists } });

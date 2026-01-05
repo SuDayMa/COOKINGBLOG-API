@@ -1,4 +1,3 @@
-// utils/imageHelper.js
 exports.formatImageUrl = (req, imagePath) => {
   if (!imagePath) return null;
   if (/^https?:\/\//i.test(imagePath)) return imagePath;

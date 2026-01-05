@@ -43,7 +43,6 @@ exports.login = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
-          // Sử dụng helper để hiện avatar admin chuẩn xác
           avatar: toPublicUrl(req, user.avatar),
         },
         access_token,

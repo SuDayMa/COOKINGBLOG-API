@@ -1,7 +1,6 @@
 const Post = require("../models/Post");
 const User = require("../models/User");
 
-// Hàm Helper (Để trong Controller hoặc Utils đều được)
 const formatImageUrl = (req, imagePath) => {
   if (!imagePath) return null;
   if (/^https?:\/\//i.test(imagePath)) return imagePath;
@@ -10,7 +9,6 @@ const formatImageUrl = (req, imagePath) => {
   return `${req.protocol}://${req.get("host")}/${finalPath}`;
 };
 
-// --- LOGIC LẤY DANH SÁCH ---
 exports.getPosts = async (req, res) => {
   try {
     const { page = 1, limit = 10, q = "", status = "approved" } = req.query;
@@ -40,7 +38,6 @@ exports.getPosts = async (req, res) => {
   }
 };
 
-// --- LOGIC TẠO BÀI VIẾT ---
 exports.createPost = async (req, res) => {
   try {
     const { title, description, image, ingredients, steps } = req.body;

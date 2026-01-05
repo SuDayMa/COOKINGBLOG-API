@@ -4,7 +4,6 @@ const Comment = require("../../models/Comment");
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    // Chạy song song tất cả các lệnh đếm để tiết kiệm thời gian
     const [totalUsers, totalPosts, pendingPosts, totalComments] = await Promise.all([
       User.countDocuments(),
       Post.countDocuments(),

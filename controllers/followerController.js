@@ -3,32 +3,26 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { toPublicUrl } = require("../utils/imageHelper");
 
-// ✅ Theo dõi hoặc Bỏ theo dõi (Toggle)
 exports.toggleFollow = async (req, res) => {
   try {
-    const { followingId } = req.body; // ID người định follow
-    const followerId = req.user.id;   // ID của chính mình (từ middleware auth)
+    const { followingId } = req.body; 
+    const followerId = req.user.id;   
 
     if (followerId === followingId) {
       return res.status(400).json({ success: false, message: "Bạn không thể theo dõi chính mình" });
     }
 
-    // Kiểm tra xem người kia có tồn tại không
     const targetUser = await User.findOne({ id: followingId });
     if (!targetUser) return res.status(404).json({ success: false, message: "Người dùng không tồn tại" });
 
-    // Kiểm tra đã follow chưa
     const existingFollow = await Follower.findOne({ follower_id: followerId, following_id: followingId });
 
     if (existingFollow) {
-      // Đã follow -> Tiến hành Unfollow
       await Follower.deleteOne({ id: existingFollow.id });
       return res.status(200).json({ success: true, message: "Đã bỏ theo dõi", isFollowing: false });
     } else {
-      // Chưa follow -> Tiến hành Follow
       await Follower.create({ follower_id: followerId, following_id: followingId });
       
-      // Tạo thông báo cho người được follow
       await Notification.create({
         kind: "follow",
         actor_id: followerId,
@@ -44,7 +38,6 @@ exports.toggleFollow = async (req, res) => {
   }
 };
 
-// ✅ Lấy danh sách "Đang theo dõi" (Following) của một User
 exports.getFollowingList = async (req, res) => {
   try {
     const { userId } = req.params;

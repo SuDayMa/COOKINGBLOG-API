@@ -2,7 +2,6 @@ const Post = require("../../models/Post");
 const User = require("../../models/User");
 const { toPublicUrl } = require("../../utils/imageHelper");
 
-// Lấy danh sách bài viết kèm thông tin tác giả
 exports.getAdminPosts = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);

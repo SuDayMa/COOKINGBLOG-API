@@ -43,7 +43,6 @@ exports.deleteUserComment = async (req, res) => {
     const cmt = await Comment.findOne({ id: req.params.id });
     if (!cmt) return res.status(404).json({ success: false, message: "Bình luận không tồn tại" });
     
-    // Kiểm tra chính chủ
     if (cmt.user_id !== req.user.id) {
       return res.status(403).json({ success: false, message: "Bạn không có quyền xóa" });
     }
