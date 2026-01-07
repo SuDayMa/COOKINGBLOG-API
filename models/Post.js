@@ -5,14 +5,22 @@ const postSchema = new mongoose.Schema(
   {
     id: { type: String, default: uuidv4, unique: true, index: true },
     user_id: { type: String, required: true, index: true },
+    category_id: { type: String, required: true, index: true }, 
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
     image: { type: String, default: null },
     ingredients: { type: String, default: null },
     steps: { type: String, default: null },
-    status: { type: String, enum: ["pending", "approved", "hidden"], default: "approved", index: true },
+    status: { 
+      type: String, 
+      enum: ["pending", "approved", "hidden"], 
+      default: "pending", 
+      index: true 
+    },
   },
-  { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
+  { 
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" } 
+  }
 );
 
 module.exports = mongoose.model("Post", postSchema);

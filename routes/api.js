@@ -9,7 +9,8 @@ const commentRoutes = require("./comments");
 const savedRoutes = require("./saved");
 const followerRoutes = require("./followers");     
 const notificationRoutes = require("./notifications");
-const reportRoutes = require("./reports");           
+const reportRoutes = require("./reports");       
+const categoryRoutes = require("./categories");    
 
 const auth = require("../middleware/auth");
 const adminOnly = require("../middleware/adminOnly");
@@ -25,5 +26,6 @@ router.use("/followers", followerRoutes);
 router.use("/notifications", notificationRoutes); 
 router.use("/reports", reportRoutes);
 router.use("/admin", auth, adminOnly, adminRoutes);
+router.use("/categories", categoryRoutes);
 
 module.exports = router;
