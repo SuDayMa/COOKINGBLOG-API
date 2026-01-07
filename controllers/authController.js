@@ -4,7 +4,7 @@ const User = require("../models/User");
 const { toPublicUrl } = require("../utils/imageHelper");
 
 const signToken = (user) => {
-  const secret = process.env.JWT_SECRET;
+    const secret = process.env.JWT_SECRET;
   if (!secret) {
     console.error("CRITICAL: JWT_SECRET is undefined in environment variables.");
     throw new Error("Server configuration error");
