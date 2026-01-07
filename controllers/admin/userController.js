@@ -44,7 +44,6 @@ exports.getAdminUsers = async (req, res) => {
 exports.updateUserStatus = async (req, res) => {
   try {
     const { is_blocked } = req.body;
-    // Tìm theo id (UUID) và cập nhật
     const user = await User.findOneAndUpdate(
       { id: req.params.id }, 
       { is_blocked }, 
@@ -65,5 +64,20 @@ exports.updateUserStatus = async (req, res) => {
   } catch (e) {
     console.error("UPDATE USER ERROR:", e);
     res.status(500).json({ success: false, message: "Lỗi khi cập nhật trạng thái" });
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const result = await User.deleteOne({ id: req.params.id });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
+    }
+    
+    res.json({ success: true, message: "Đã xóa người dùng thành công" });
+  } catch (e) {
+    console.error("DELETE USER ERROR:", e);
+    res.status(500).json({ success: false, message: "Lỗi Server khi xóa" });
   }
 };
