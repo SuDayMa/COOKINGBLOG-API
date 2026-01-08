@@ -1,14 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const postController = require("../controllers/admin/postController");
-
-console.log("DANH SÁCH HÀM TRONG CONTROLLER:", Object.keys(postController));
-
-if (!postController.getAdminPosts) console.error("LỖI: Thiếu hàm getAdminPosts");
-if (!postController.updatePostStatus) console.error("LỖI: Thiếu hàm updatePostStatus");
-if (!postController.deletePost) console.error("LỖI: Thiếu hàm deletePost");
-
+console.log("Admin Post Controller Methods:", Object.keys(postController));
 router.get("/", postController.getAdminPosts);
+if (postController.getAdminPostDetail) {
+    router.get("/:id", postController.getAdminPostDetail);
+} else {
+    console.warn("CẢNH BÁO: Chưa khai báo hàm getAdminPostDetail trong Controller!");
+}
 if (postController.updatePostStatus) {
     router.patch("/:id/status", postController.updatePostStatus);
 }

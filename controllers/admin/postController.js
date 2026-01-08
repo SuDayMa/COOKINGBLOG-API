@@ -23,19 +23,16 @@ exports.getAdminPosts = async (req, res) => {
     const userIds = [...new Set(rows.map(r => r.user_id?.toString()).filter(Boolean))];
     const categoryIds = [...new Set(rows.map(r => r.category_id?.toString()).filter(Boolean))];
 
-    const validUserObjectIds = userIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-    const validCategoryObjectIds = categoryIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-
     const [users, categories] = await Promise.all([
       User.find({ 
         $or: [
-          { _id: { $in: validUserObjectIds } },
-          { id: { $in: userIds } } // Tìm theo trường id dạng String/UUID
+          { _id: { $in: userIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
+          { id: { $in: userIds } }
         ] 
       }).select("id _id name avatar").lean(),
       Category.find({ 
         $or: [
-          { _id: { $in: validCategoryObjectIds } },
+          { _id: { $in: categoryIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
           { id: { $in: categoryIds } }
         ] 
       }).select("id _id name").lean()
@@ -70,7 +67,79 @@ exports.getAdminPosts = async (req, res) => {
 
     res.status(200).json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
-    console.error("CRITICAL ERROR ADMIN POSTS:", e);
+    console.error("CRITICAL ERROR ADMIN GET POSTS:", e);
     res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+exports.getAdminPostDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const post = await Post.findOne({
+      $or: [
+        { _id: mongoose.Types.ObjectId.isValid(id) ? id : null },
+        { id: id }
+      ].filter(Boolean)
+    }).lean();
+
+    if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+
+    const [author, category] = await Promise.all([
+      User.findOne({ 
+        $or: [{ _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, { id: post.user_id }].filter(Boolean)
+      }).select("name avatar").lean(),
+      Category.findOne({
+        $or: [{ _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, { id: post.category_id }].filter(Boolean)
+      }).select("name").lean()
+    ]);
+
+    res.json({ 
+      success: true, 
+      data: { 
+        ...post, 
+        image: toPublicUrl(req, post.image),
+        author: author ? { ...author, avatar: toPublicUrl(req, author.avatar) } : { name: "N/A" },
+        category_name: category ? category.name : "Chưa phân loại"
+      } 
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+exports.updatePostStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { id } = req.params;
+
+    if (!["pending", "approved", "hidden"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
+    }
+
+    const post = await Post.findOneAndUpdate(
+      { $or: [{ _id: mongoose.Types.ObjectId.isValid(id) ? id : null }, { id: id }].filter(Boolean) },
+      { status },
+      { new: true }
+    );
+    
+    if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+    res.json({ success: true, data: post });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Lỗi cập nhật: " + e.message });
+  }
+};
+
+exports.deletePost = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await Post.findOneAndDelete({
+      $or: [{ _id: mongoose.Types.ObjectId.isValid(id) ? id : null }, { id: id }].filter(Boolean)
+    });
+
+    if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài" });
+    res.json({ success: true, message: "Đã xóa thành công" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Lỗi khi xóa" });
   }
 };
