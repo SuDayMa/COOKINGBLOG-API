@@ -2,7 +2,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const Category = require("../models/Category");
 const { toPublicUrl } = require("../utils/imageHelper");
-const mongoose = require("mongoose"); 
+const mongoose = require("mongoose");
 
 exports.getPosts = async (req, res) => {
   try {
@@ -70,7 +70,7 @@ exports.getPosts = async (req, res) => {
       return {
         ...p,
         image: toPublicUrl(req, p.image), 
-        user: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : null,
+        author: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : null, 
         category_name: c ? c.name : "Chưa phân loại"
       };
     });
@@ -79,6 +79,44 @@ exports.getPosts = async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: "Lỗi Server" });
+  }
+};
+
+exports.getMyPosts = async (req, res) => {
+  try {
+    const finalUserId = String(req.user._id || req.user.id);
+
+    const posts = await Post.find({ user_id: finalUserId })
+      .sort({ created_at: -1 })
+      .lean();
+
+    const catIds = [...new Set(posts.map(p => p.category_id?.toString()).filter(Boolean))];
+    const categories = await Category.find({
+      $or: [
+        { _id: { $in: catIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
+        { id: { $in: catIds } }
+      ]
+    }).select("id _id name").lean();
+
+    const catMap = new Map();
+    categories.forEach(c => {
+      if (c._id) catMap.set(c._id.toString(), c);
+      if (c.id) catMap.set(c.id.toString(), c);
+    });
+
+    const items = posts.map(p => {
+      const c = catMap.get(p.category_id?.toString());
+      return {
+        ...p,
+        image: toPublicUrl(req, p.image),
+        category_name: c ? c.name : "Chưa phân loại"
+      };
+    });
+
+    res.json({ success: true, data: { items } });
+  } catch (e) {
+    console.error("Lỗi getMyPosts:", e);
+    res.status(500).json({ success: false, message: "Không thể tải bài viết của bạn" });
   }
 };
 
