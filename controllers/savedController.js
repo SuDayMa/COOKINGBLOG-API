@@ -1,4 +1,3 @@
-// controllers/savedController.js
 const SavedPost = require("../models/SavedPost");
 const Post = require("../models/Post");
 const { toPublicUrl } = require("../utils/imageHelper");
@@ -16,28 +15,105 @@ exports.toggleSave = async (req, res) => {
       ].filter(Boolean)
     }).select("id _id");
 
-    if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+    }
 
-    const finalPostId = post.id || post._id.toString();
-    const userId = req.user.id || req.user._id;
+    const finalPostId = postId; 
+    const userId = String(req.user._id || req.user.id);
 
-    const exists = await SavedPost.findOne({ user_id: userId, post_id: finalPostId });
+    const exists = await SavedPost.findOne({ 
+      user_id: userId, 
+      post_id: finalPostId 
+    });
 
     if (exists) {
       await SavedPost.deleteOne({ _id: exists._id });
-      return res.json({ success: true, data: { postId: finalPostId, saved: false } });
+      return res.json({ 
+        success: true, 
+        message: "Đã bỏ lưu", 
+        data: { postId: finalPostId, saved: false } 
+      });
     }
 
-    await SavedPost.create({ user_id: userId, post_id: finalPostId });
-    res.json({ success: true, data: { postId: finalPostId, saved: true } });
+    await SavedPost.create({ 
+      user_id: userId, 
+      post_id: finalPostId 
+    });
+
+    return res.json({ 
+      success: true, 
+      message: "Đã lưu bài viết", 
+      data: { postId: finalPostId, saved: true } 
+    });
+
   } catch (e) {
     console.error("Lỗi Toggle Save:", e);
+    res.status(500).json({ success: false, message: "Lỗi Server: " + e.message });
+  }
+};
+
+exports.getSavedPosts = async (req, res) => {
+  try {
+    const userId = String(req.user._id || req.user.id);
+    const page = Math.max(parseInt(req.query.page || "1"), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "10"), 1), 50);
+
+    const total = await SavedPost.countDocuments({ user_id: userId });
+    const saved = await SavedPost.find({ user_id: userId })
+      .sort({ created_at: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const postIds = saved.map(s => s.post_id);
+    
+    const posts = await Post.find({ 
+      $or: [
+        { _id: { $in: postIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
+        { id: { $in: postIds } }
+      ]
+    }).select("id _id title image").lean();
+
+    const map = new Map();
+    posts.forEach(p => {
+        if (p._id) map.set(p._id.toString(), p);
+        if (p.id) map.set(p.id, p);
+    });
+
+    const items = saved
+      .map(s => {
+        const p = map.get(s.post_id);
+        if (!p) return null;
+        return {
+          ...p,
+          id: p.id || p._id.toString(),
+          image: toPublicUrl(req, p.image) 
+        };
+      })
+      .filter(Boolean);
+
+    res.json({ success: true, data: { page, limit, total, items } });
+  } catch (e) {
     res.status(500).json({ success: false, message: "Lỗi Server" });
   }
 };
 
 exports.checkSaved = async (req, res) => {
-  const userId = req.user.id || req.user._id;
-  const exists = await SavedPost.findOne({ user_id: userId, post_id: req.params.postId });
-  res.json({ success: true, data: { postId: req.params.postId, saved: !!exists } });
+  try {
+    const userId = String(req.user._id || req.user.id);
+    const { postId } = req.params;
+
+    const exists = await SavedPost.findOne({ 
+      user_id: userId, 
+      post_id: String(postId) 
+    });
+
+    res.json({ 
+      success: true, 
+      data: { postId, saved: !!exists } 
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
 };
