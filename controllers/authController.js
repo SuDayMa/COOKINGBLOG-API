@@ -84,7 +84,7 @@ exports.login = async (req, res) => {
     }
 
     if (user.is_blocked === true) {
-      return res.status(403).json({ success: false, message: "Tài khoản của bạn đã bị khóa bởi Admin" });
+      return res.status(403).json({ success: false, message: "Tài khoản của bạn đã bị khóa" });
     }
 
     let token;
