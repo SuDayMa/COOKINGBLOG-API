@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const postSchema = new mongoose.Schema(
   {
     id: { type: String, default: uuidv4, unique: true, index: true },
+    
     user_id: { type: String, required: true, index: true },
     
     category_id: { type: String, required: true, index: true }, 
@@ -23,6 +24,7 @@ const postSchema = new mongoose.Schema(
     },
 
     comments: { type: Number, default: 0 },
+    
     status: { 
       type: String, 
       enum: ["pending", "approved", "hidden", "rejected"], 
@@ -31,10 +33,18 @@ const postSchema = new mongoose.Schema(
     },
   },
   { 
-    timestamps: { createdAt: "created_at", updatedAt: "updated_at" } 
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
+    versionKey: false
   }
 );
 
 postSchema.index({ title: "text", description: "text" });
+
+postSchema.pre('save', function(next) {
+  if (this.likes === null || this.likes === undefined) {
+    this.likes = 0;
+  }
+  next();
+});
 
 module.exports = mongoose.model("Post", postSchema);

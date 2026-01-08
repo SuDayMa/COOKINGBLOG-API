@@ -37,47 +37,30 @@ exports.toggleSave = async (req, res) => {
         { $inc: { likes: -1 } },
         { new: true }
       );
-
-      const currentLikes = updatedPost ? Math.max(0, updatedPost.likes) : 0;
-
-      return res.json({ 
-        success: true, 
-        message: "Đã bỏ lưu", 
-        data: { 
-          postId: postId,
-          saved: false, 
-          likes: currentLikes
-        } 
-      });
     } else {
       await SavedPost.create({ 
         user_id: userId, 
         post_id: finalPostId 
       });
-      if (post.likes === null || post.likes === undefined) {
-        updatedPost = await Post.findByIdAndUpdate(
-          post._id,
-          { $set: { likes: 1 } },
-          { new: true }
-        );
-      } else {
-        updatedPost = await Post.findByIdAndUpdate(
-          post._id,
-          { $inc: { likes: 1 } },
-          { new: true }
-        );
-      }
 
-      return res.json({ 
-        success: true, 
-        message: "Đã lưu bài viết", 
-        data: { 
-          postId: postId, 
-          saved: true, 
-          likes: updatedPost ? updatedPost.likes : 1
-        } 
-      });
+      updatedPost = await Post.findByIdAndUpdate(
+        post._id,
+        { $inc: { likes: 1 } },
+        { new: true, setDefaultsOnInsert: true }
+      );
     }
+
+    const finalLikes = updatedPost && updatedPost.likes >= 0 ? updatedPost.likes : 0;
+
+    return res.json({ 
+      success: true, 
+      message: exists ? "Đã bỏ lưu" : "Đã lưu bài viết", 
+      data: { 
+        postId: postId,
+        saved: !exists, 
+        likes: finalLikes
+      } 
+    });
 
   } catch (e) {
     console.error("Lỗi Toggle Save:", e);
@@ -128,7 +111,6 @@ exports.getSavedPosts = async (req, res) => {
 
     res.json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
-    console.error("Lỗi lấy danh sách đã lưu:", e);
     res.status(500).json({ success: false, message: "Lỗi Server tải danh sách" });
   }
 };

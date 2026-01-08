@@ -8,7 +8,10 @@ const savedPostSchema = new mongoose.Schema(
     post_id: { type: String, required: true, index: true },
     saved_at: { type: Date, default: Date.now },
   },
-  { timestamps: false }
+  { 
+    timestamps: false,
+    versionKey: false 
+  }
 );
 
 savedPostSchema.index({ user_id: 1, post_id: 1 }, { unique: true });
