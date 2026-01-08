@@ -6,7 +6,7 @@ const { toPublicUrl } = require("../../utils/imageHelper");
 exports.getAdminPosts = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 50);
+    const limit = Math.max(parseInt(req.query.limit || "20", 10), 1);
     const q = (req.query.q || "").trim();
     const status = (req.query.status || "").trim();
     const category_id = (req.query.category_id || "").trim(); 
@@ -15,7 +15,9 @@ exports.getAdminPosts = async (req, res) => {
     if (q) {
       filter.$or = [{ title: new RegExp(q, "i") }, { description: new RegExp(q, "i") }];
     }
-    if (["pending", "approved", "hidden"].includes(status)) filter.status = status;
+    if (["pending", "approved", "hidden"].includes(status)) {
+        filter.status = status;
+    }
     if (category_id) filter.category_id = category_id; 
 
     const total = await Post.countDocuments(filter);
@@ -26,20 +28,18 @@ exports.getAdminPosts = async (req, res) => {
       .lean();
 
     const userIds = [...new Set(rows.map(r => r.user_id?.toString()).filter(Boolean))];
-    const users = await User.find({ 
-      $or: [{ _id: { $in: userIds } }, { id: { $in: userIds } }] 
-    }).select("id _id name avatar").lean();
+    const categoryIds = [...new Set(rows.map(r => r.category_id?.toString()).filter(Boolean))];
+
+    const [users, categories] = await Promise.all([
+      User.find({ $or: [{ _id: { $in: userIds } }, { id: { $in: userIds } }] }).select("id _id name avatar").lean(),
+      Category.find({ $or: [{ _id: { $in: categoryIds } }, { id: { $in: categoryIds } }] }).select("id _id name").lean()
+    ]);
 
     const userMap = new Map();
     users.forEach(u => {
       if (u._id) userMap.set(u._id.toString(), u);
       if (u.id) userMap.set(u.id.toString(), u);
     });
-
-    const categoryIds = [...new Set(rows.map(r => r.category_id?.toString()).filter(Boolean))];
-    const categories = await Category.find({ 
-      $or: [{ _id: { $in: categoryIds } }, { id: { $in: categoryIds } }] 
-    }).select("id _id name").lean();
 
     const categoryMap = new Map();
     categories.forEach(c => {
@@ -48,59 +48,32 @@ exports.getAdminPosts = async (req, res) => {
     });
 
     const items = rows.map(p => {
-      const userIdStr = p.user_id?.toString();
-      const catIdStr = p.category_id?.toString();
-      
-      const au = userMap.get(userIdStr);
-      const cat = categoryMap.get(catIdStr); 
+      const u = userMap.get(p.user_id?.toString());
+      const cat = categoryMap.get(p.category_id?.toString()); 
       
       return {
         ...p,
-        image: toPublicUrl(req, p.image),
-        author: au ? { ...au, avatar: toPublicUrl(req, au.avatar) } : null,
-        category: cat || { name: "Chưa phân loại" }, 
+        image: p.image ? toPublicUrl(req, p.image) : null,
+        author: u ? { 
+            name: u.name, 
+            avatar: u.avatar ? toPublicUrl(req, u.avatar) : null 
+        } : { name: "N/A", avatar: null },
+        category: cat ? { id: cat._id || cat.id, name: cat.name } : { name: "Chưa phân loại" }, 
       };
     });
 
-    res.status(200).json({ success: true, data: { page, limit, total, items } });
-  } catch (e) {
-    console.error("DEBUG ADMIN GET POSTS:", e);
-    res.status(500).json({ success: false, message: e.message || "Lỗi Server" });
-  }
-};
-
-exports.updatePostStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const { id } = req.params;
-
-    if (!["pending", "approved", "hidden"].includes(status)) {
-      return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
-    }
-
-    const post = await Post.findOneAndUpdate(
-      { $or: [{ _id: id.length === 24 ? id : null }, { id: id }] },
-      { status },
-      { new: true }
-    );
-    
-    if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
-    res.json({ success: true, data: post });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi cập nhật: " + e.message });
-  }
-};
-
-exports.deletePost = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await Post.findOneAndDelete({
-      $or: [{ _id: id.length === 24 ? id : null }, { id: id }]
+    res.status(200).json({ 
+        success: true, 
+        data: { 
+            items, 
+            total, 
+            page, 
+            limit,
+            totalPages: Math.ceil(total / limit)
+        } 
     });
-
-    if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài" });
-    res.json({ success: true, message: "Đã xóa thành công" });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi khi xóa" });
+    console.error("CRITICAL ERROR ADMIN POSTS:", e);
+    res.status(500).json({ success: false, message: "Lỗi Server: " + e.message });
   }
 };
