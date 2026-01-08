@@ -1,8 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const categoryController = require("../controllers/categoryController"); // Import controller
+const categoryController = require("../controllers/categoryController");
+const auth = require("../middleware/auth");
+const adminOnly = require("../middleware/adminOnly"); 
 
-// App Mobile gọi đường dẫn này để hiện danh sách nút bấm
+
 router.get("/", categoryController.getAllCategories); 
+
+router.post("/", auth, adminOnly, categoryController.createCategory);
+
+router.delete("/:id", auth, adminOnly, categoryController.deleteCategory);
 
 module.exports = router;
