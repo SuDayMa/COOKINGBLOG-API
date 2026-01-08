@@ -69,6 +69,7 @@ exports.getPosts = async (req, res) => {
       
       return {
         ...p,
+        likes: Number(p.likes || 0),
         image: toPublicUrl(req, p.image), 
         author: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : null, 
         category_name: c ? c.name : "Chưa phân loại"
@@ -86,6 +87,7 @@ exports.getMyPosts = async (req, res) => {
   try {
     const finalUserId = String(req.user._id || req.user.id);
 
+    // Tìm tất cả bài viết của tôi (Suvo)
     const posts = await Post.find({ user_id: finalUserId })
       .sort({ created_at: -1 })
       .lean();
@@ -108,6 +110,7 @@ exports.getMyPosts = async (req, res) => {
       const c = catMap.get(p.category_id?.toString());
       return {
         ...p,
+        likes: Number(p.likes || 0), 
         image: toPublicUrl(req, p.image),
         category_name: c ? c.name : "Chưa phân loại"
       };
@@ -138,6 +141,7 @@ exports.createPost = async (req, res) => {
       image: req.file ? req.file.path : req.body.image, 
       ingredients,
       steps,
+      likes: 0, 
       status: "pending" 
     });
 
