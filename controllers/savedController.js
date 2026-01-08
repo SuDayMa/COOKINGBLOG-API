@@ -19,18 +19,20 @@ exports.toggleSave = async (req, res) => {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
-    const mongoPostId = String(post._id); 
-    const userId = String(req.user._id || req.user.id);
+    const finalPostId = String(post.id || post._id);
+    const userId = String(req.user.id || req.user._id);
 
     const exists = await SavedPost.findOne({ 
       user_id: userId, 
-      post_id: mongoPostId 
+      post_id: finalPostId 
     });
+
+    let updatedPost;
 
     if (exists) {
       await SavedPost.deleteOne({ _id: exists._id });
       
-      const updatedPost = await Post.findByIdAndUpdate(
+      updatedPost = await Post.findByIdAndUpdate(
         post._id,
         { $inc: { likes: -1 } },
         { new: true }
@@ -40,61 +42,61 @@ exports.toggleSave = async (req, res) => {
         success: true, 
         message: "Đã bỏ lưu", 
         data: { 
-          postId: postId, 
+          postId: finalPostId, 
           saved: false, 
+          likes: updatedPost ? updatedPost.likes : 0 
+        } 
+      });
+    } else {
+      await SavedPost.create({ 
+        user_id: userId, 
+        post_id: finalPostId 
+      });
+
+      updatedPost = await Post.findByIdAndUpdate(
+        post._id,
+        { $inc: { likes: 1 } },
+        { new: true }
+      );
+
+      return res.json({ 
+        success: true, 
+        message: "Đã lưu bài viết", 
+        data: { 
+          postId: finalPostId, 
+          saved: true, 
           likes: updatedPost ? updatedPost.likes : 0 
         } 
       });
     }
 
-    await SavedPost.create({ 
-      user_id: userId, 
-      post_id: mongoPostId 
-    });
-
-    const updatedPost = await Post.findByIdAndUpdate(
-      post._id,
-      { $inc: { likes: 1 } },
-      { new: true }
-    );
-
-    return res.json({ 
-      success: true, 
-      message: "Đã lưu bài viết", 
-      data: { 
-        postId: postId, 
-        saved: true, 
-        likes: updatedPost ? updatedPost.likes : 0 
-      } 
-    });
-
   } catch (e) {
     console.error("Lỗi Toggle Save:", e);
-    res.status(500).json({ success: false, message: "Lỗi Server: " + e.message });
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi xử lý dữ liệu ID" });
   }
 };
 
 exports.getSavedPosts = async (req, res) => {
   try {
-    const userId = String(req.user._id || req.user.id);
+    const userId = String(req.user.id || req.user._id);
     const page = Math.max(parseInt(req.query.page || "1"), 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || "10"), 1), 50);
 
     const total = await SavedPost.countDocuments({ user_id: userId });
-    const saved = await SavedPost.find({ user_id: userId })
-      .sort({ created_at: -1 })
+    const savedRecords = await SavedPost.find({ user_id: userId })
+      .sort({ saved_at: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
 
-    const postIds = saved.map(s => s.post_id);
+    const postIds = savedRecords.map(s => s.post_id);
     
     const posts = await Post.find({ 
       $or: [
         { _id: { $in: postIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
         { id: { $in: postIds } }
       ]
-    }).select("id _id title image likes category_name").lean();
+    }).select("id _id title image likes category_name status").lean();
 
     const map = new Map();
     posts.forEach(p => {
@@ -102,7 +104,7 @@ exports.getSavedPosts = async (req, res) => {
         if (p.id) map.set(p.id, p);
     });
 
-    const items = saved
+    const items = savedRecords
       .map(s => {
         const p = map.get(s.post_id);
         if (!p) return null;
@@ -116,13 +118,14 @@ exports.getSavedPosts = async (req, res) => {
 
     res.json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi Server" });
+    console.error("Lỗi Get Saved Posts:", e);
+    res.status(500).json({ success: false, message: "Lỗi Server khi tải danh sách đã lưu" });
   }
 };
 
 exports.checkSaved = async (req, res) => {
   try {
-    const userId = String(req.user._id || req.user.id);
+    const userId = String(req.user.id || req.user._id);
     const { postId } = req.params;
 
     const exists = await SavedPost.findOne({ 
@@ -135,6 +138,6 @@ exports.checkSaved = async (req, res) => {
       data: { postId, saved: !!exists } 
     });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    res.status(500).json({ success: false, message: "Lỗi kiểm tra trạng thái lưu" });
   }
 };
