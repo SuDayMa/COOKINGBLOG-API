@@ -2,6 +2,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const Category = require("../models/Category");
 const { toPublicUrl } = require("../utils/imageHelper");
+const mongoose = require("mongoose"); 
 
 exports.getPosts = async (req, res) => {
   try {
@@ -15,15 +16,15 @@ exports.getPosts = async (req, res) => {
 
     const filter = { status };
 
+    if (category_id) {
+      filter.category_id = category_id;
+    }
+
     if (q) {
       filter.$or = [
         { title: new RegExp(q, "i") }, 
         { description: new RegExp(q, "i") }
       ];
-    }
-
-    if (category_id) {
-      filter.category_id = category_id;
     }
 
     const posts = await Post.find(filter)
@@ -32,17 +33,39 @@ exports.getPosts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const userIds = [...new Set(posts.map(p => p.user_id).filter(Boolean))];
-    const users = await User.find({ id: { $in: userIds } }).select("id name avatar").lean();
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userIds = [...new Set(posts.map(p => p.user_id?.toString()).filter(Boolean))];
+    const catIds = [...new Set(posts.map(p => p.category_id?.toString()).filter(Boolean))];
 
-    const catIds = [...new Set(posts.map(p => p.category_id).filter(Boolean))];
-    const categories = await Category.find({ id: { $in: catIds } }).select("id name").lean();
-    const catMap = new Map(categories.map(c => [c.id, c]));
+    const [users, categories] = await Promise.all([
+      User.find({ 
+        $or: [
+          { _id: { $in: userIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
+          { id: { $in: userIds } }
+        ]
+      }).select("id _id name avatar").lean(),
+      Category.find({ 
+        $or: [
+          { _id: { $in: catIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
+          { id: { $in: catIds } }
+        ]
+      }).select("id _id name").lean()
+    ]);
+
+    const userMap = new Map();
+    users.forEach(u => {
+      if (u._id) userMap.set(u._id.toString(), u);
+      if (u.id) userMap.set(u.id.toString(), u);
+    });
+
+    const catMap = new Map();
+    categories.forEach(c => {
+      if (c._id) catMap.set(c._id.toString(), c);
+      if (c.id) catMap.set(c.id.toString(), c);
+    });
 
     const items = posts.map(p => {
-      const u = userMap.get(p.user_id);
-      const c = catMap.get(p.category_id);
+      const u = userMap.get(p.user_id?.toString());
+      const c = catMap.get(p.category_id?.toString());
       
       return {
         ...p,
@@ -67,9 +90,14 @@ exports.createPost = async (req, res) => {
       return res.status(400).json({ success: false, message: "Vui lòng chọn danh mục món ăn" });
     }
 
+    let finalCategoryId = category_id;
+    if (mongoose.Types.ObjectId.isValid(category_id)) {
+        finalCategoryId = new mongoose.Types.ObjectId(category_id);
+    }
+
     const post = await Post.create({
-      user_id: req.user.id,
-      category_id, 
+      user_id: req.user._id || req.user.id, 
+      category_id: finalCategoryId, 
       title,
       description,
       image: req.file ? req.file.path : req.body.image, 

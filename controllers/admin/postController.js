@@ -61,7 +61,7 @@ exports.getAdminPosts = async (req, res) => {
           id: u.id || u._id.toString(),
           name: u.name, 
           avatar: u.avatar ? toPublicUrl(req, u.avatar) : null 
-        } : { name: "N/A", avatar: null },
+        } : { name: "Người dùng hệ thống", avatar: null },
         category_name: c ? c.name : "Chưa phân loại",
         category: c ? { id: c.id || c._id, name: c.name } : { name: "Chưa phân loại" }
       };
@@ -70,7 +70,7 @@ exports.getAdminPosts = async (req, res) => {
     res.status(200).json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
     console.error("ADMIN_GET_POSTS_ERROR:", e);
-    res.status(500).json({ success: false, message: e.message });
+    res.status(500).json({ success: false, message: "Lỗi Server: " + e.message });
   }
 };
 
@@ -111,7 +111,7 @@ exports.getAdminPostDetail = async (req, res) => {
           id: author.id || author._id.toString(),
           name: author.name, 
           avatar: author.avatar ? toPublicUrl(req, author.avatar) : null 
-        } : { name: "N/A", avatar: null },
+        } : { name: "Người dùng hệ thống", avatar: null },
         category_name: category ? category.name : "Chưa phân loại",
         category: category ? { id: category.id || category._id, name: category.name } : { name: "Chưa phân loại" }
       } 
