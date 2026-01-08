@@ -61,7 +61,7 @@ exports.getPosts = async (req, res) => {
 
 exports.createPost = async (req, res) => {
   try {
-    const { title, description, image, ingredients, steps, category_id } = req.body;
+    const { title, description, ingredients, steps, category_id } = req.body;
 
     if (!category_id) {
       return res.status(400).json({ success: false, message: "Vui lòng chọn danh mục món ăn" });
@@ -72,7 +72,7 @@ exports.createPost = async (req, res) => {
       category_id, 
       title,
       description,
-      image: req.file ? req.file.path : image, 
+      image: req.file ? req.file.path : req.body.image, 
       ingredients,
       steps,
       status: "pending" 
@@ -80,6 +80,7 @@ exports.createPost = async (req, res) => {
 
     res.status(201).json({ success: true, data: post });
   } catch (e) {
-    res.status(400).json({ success: false, message: "Không thể tạo bài viết" });
+    console.error("Lỗi tạo bài viết:", e); 
+    res.status(400).json({ success: false, message: e.message || "Không thể tạo bài viết" });
   }
 };
