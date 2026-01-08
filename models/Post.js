@@ -6,7 +6,6 @@ const postSchema = new mongoose.Schema(
     id: { type: String, default: uuidv4, unique: true, index: true },
     
     user_id: { type: String, required: true, index: true },
-    
     category_id: { type: String, required: true, index: true }, 
     
     title: { type: String, required: true, trim: true },
@@ -20,7 +19,9 @@ const postSchema = new mongoose.Schema(
       type: Number, 
       default: 0, 
       min: 0,
-      index: true 
+      index: true,
+      get: v => Math.round(v) || 0,
+      set: v => v === null || v === undefined ? 0 : v
     },
 
     comments: { type: Number, default: 0 },
@@ -34,7 +35,9 @@ const postSchema = new mongoose.Schema(
   },
   { 
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
-    versionKey: false
+    versionKey: false,
+    toJSON: { getters: true },
+    toObject: { getters: true }
   }
 );
 

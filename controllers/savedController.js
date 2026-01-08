@@ -43,14 +43,22 @@ exports.toggleSave = async (req, res) => {
         post_id: finalPostId 
       });
 
-      updatedPost = await Post.findByIdAndUpdate(
-        post._id,
-        { $inc: { likes: 1 } },
-        { new: true, setDefaultsOnInsert: true }
+      updatedPost = await Post.findOneAndUpdate(
+        { _id: post._id },
+        [
+          {
+            $set: {
+              likes: {
+                $add: [{ $ifNull: ["$likes", 0] }, 1]
+              }
+            }
+          }
+        ],
+        { new: true }
       );
     }
 
-    const finalLikes = updatedPost && updatedPost.likes >= 0 ? updatedPost.likes : 0;
+    const finalLikes = updatedPost && updatedPost.likes ? Math.max(0, updatedPost.likes) : (exists ? 0 : 1);
 
     return res.json({ 
       success: true, 
