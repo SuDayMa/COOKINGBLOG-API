@@ -3,7 +3,6 @@ const User = require("../../models/User");
 const Category = require("../../models/Category");
 const { toPublicUrl } = require("../../utils/imageHelper");
 const mongoose = require("mongoose");
-
 const safePublicUrl = (req, path) => {
   try {
     if (!path || typeof path !== 'string') return null;
@@ -74,7 +73,7 @@ exports.getAdminPosts = async (req, res) => {
           id: u.id || u._id.toString(),
           name: u.name, 
           avatar: safePublicUrl(req, u.avatar) 
-        } : { name: "Không tìm thấy tác giả", avatar: null },
+        } : { name: "Người dùng hệ thống", avatar: null },
         category_name: c ? c.name : "Chưa phân loại",
         category: c ? { id: c.id || c._id.toString(), name: c.name } : { name: "Chưa phân loại" }
       };
@@ -106,13 +105,13 @@ exports.getAdminPostDetail = async (req, res) => {
       User.findOne({ 
         $or: [
           { _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, 
-          { id: post.user_id }
+          { id: post.user_id?.toString() }
         ].filter(Boolean)
       }).select("id _id name avatar").lean(),
       Category.findOne({
         $or: [
           { _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, 
-          { id: post.category_id }
+          { id: post.category_id?.toString() }
         ].filter(Boolean)
       }).select("id _id name").lean()
     ]);
@@ -126,7 +125,7 @@ exports.getAdminPostDetail = async (req, res) => {
           id: author.id || author._id.toString(),
           name: author.name, 
           avatar: safePublicUrl(req, author.avatar) 
-        } : { name: "Không tìm thấy tác giả", avatar: null },
+        } : { name: "Người dùng hệ thống", avatar: null },
         category_name: category ? category.name : "Chưa phân loại",
         category: category ? { id: category.id || category._id.toString(), name: category.name } : { name: "Chưa phân loại" }
       } 

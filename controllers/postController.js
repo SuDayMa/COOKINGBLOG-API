@@ -17,7 +17,7 @@ exports.getPosts = async (req, res) => {
     const filter = { status };
 
     if (category_id) {
-      filter.category_id = category_id;
+      filter.category_id = String(category_id);
     }
 
     if (q) {
@@ -89,14 +89,11 @@ exports.createPost = async (req, res) => {
     if (!category_id) {
       return res.status(400).json({ success: false, message: "Vui lòng chọn danh mục món ăn" });
     }
-
-    let finalCategoryId = category_id;
-    if (mongoose.Types.ObjectId.isValid(category_id)) {
-        finalCategoryId = new mongoose.Types.ObjectId(category_id);
-    }
+    const finalUserId = String(req.user._id || req.user.id);
+    const finalCategoryId = String(category_id);
 
     const post = await Post.create({
-      user_id: req.user._id || req.user.id, 
+      user_id: finalUserId, 
       category_id: finalCategoryId, 
       title,
       description,
