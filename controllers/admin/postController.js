@@ -60,6 +60,44 @@ exports.getAdminPosts = async (req, res) => {
   }
 };
 
+exports.getAdminPostDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Tìm bài viết theo _id (ObjectId) hoặc id (String/UUID)
+    const post = await Post.findOne({
+      $or: [
+        { _id: mongoose.Types.ObjectId.isValid(id) ? id : null },
+        { id: id }
+      ].filter(Boolean)
+    }).lean();
+
+    if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+
+    // Lấy thêm thông tin tác giả và danh mục
+    const [author, category] = await Promise.all([
+      User.findOne({ 
+        $or: [{ _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, { id: post.user_id }].filter(Boolean)
+      }).select("name avatar").lean(),
+      Category.findOne({
+        $or: [{ _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, { id: post.category_id }].filter(Boolean)
+      }).select("name").lean()
+    ]);
+
+    res.json({ 
+      success: true, 
+      data: { 
+        ...post, 
+        image: post.image ? toPublicUrl(req, post.image) : null,
+        author: author ? { ...author, avatar: toPublicUrl(req, author.avatar) } : { name: "N/A" },
+        category_name: category ? category.name : "Chưa phân loại"
+      } 
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 exports.updatePostStatus = async (req, res) => {
   try {
     const { status } = req.body;
