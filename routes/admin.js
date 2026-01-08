@@ -8,7 +8,7 @@ const adminUsers = require("./admin.users");
 const adminComments = require("./admin.comments");
 const adminStats = require("./admin.stats");
 const adminReports = require("./admin.reports");
-
+const adminCategories = require("./admin.categories");
 
 const auth = require("../middleware/auth");
 const adminOnly = require("../middleware/adminOnly");
@@ -24,5 +24,6 @@ router.use("/users", adminUsers);
 router.use("/comments", adminComments);
 router.use("/stats", adminStats);     
 router.use("/reports", adminReports);
+router.use("/categories", adminCategories);
 
 module.exports = router;

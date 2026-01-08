@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const Category = require("../models/Category");
+const categoryController = require("../controllers/categoryController"); // Import controller
 
-router.get("/", async (req, res) => {
-  const cats = await Category.find().lean();
-  res.json({ success: true, data: cats });
-});
+// App Mobile gọi đường dẫn này để hiện danh sách nút bấm
+router.get("/", categoryController.getAllCategories); 
 
 module.exports = router;
