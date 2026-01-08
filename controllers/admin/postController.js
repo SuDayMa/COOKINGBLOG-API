@@ -46,16 +46,23 @@ exports.getAdminPosts = async (req, res) => {
     const items = rows.map(p => {
       const u = userMap.get(p.user_id?.toString());
       const c = categoryMap.get(p.category_id?.toString()); 
+      
       return {
         ...p,
         image: p.image ? toPublicUrl(req, p.image) : null,
-        author: u ? { name: u.name, avatar: u.avatar ? toPublicUrl(req, u.avatar) : null } : { name: "N/A" },
-        category: c ? { name: c.name } : { name: "Chưa phân loại" }, 
+        author: u ? { 
+          id: u.id || u._id.toString(),
+          name: u.name, 
+          avatar: u.avatar ? toPublicUrl(req, u.avatar) : null 
+        } : { name: "N/A" },
+        category_name: c ? c.name : "Chưa phân loại",
+        category: c || { name: "Chưa phân loại" }
       };
     });
 
     res.status(200).json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
+    console.error("ADMIN_GET_POSTS_ERROR:", e);
     res.status(500).json({ success: false, message: e.message });
   }
 };
@@ -64,7 +71,6 @@ exports.getAdminPostDetail = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Tìm bài viết theo _id (ObjectId) hoặc id (String/UUID)
     const post = await Post.findOne({
       $or: [
         { _id: mongoose.Types.ObjectId.isValid(id) ? id : null },
@@ -74,14 +80,13 @@ exports.getAdminPostDetail = async (req, res) => {
 
     if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
 
-    // Lấy thêm thông tin tác giả và danh mục
     const [author, category] = await Promise.all([
       User.findOne({ 
         $or: [{ _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, { id: post.user_id }].filter(Boolean)
-      }).select("name avatar").lean(),
+      }).select("id _id name avatar").lean(),
       Category.findOne({
         $or: [{ _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, { id: post.category_id }].filter(Boolean)
-      }).select("name").lean()
+      }).select("id _id name").lean()
     ]);
 
     res.json({ 
@@ -89,8 +94,13 @@ exports.getAdminPostDetail = async (req, res) => {
       data: { 
         ...post, 
         image: post.image ? toPublicUrl(req, post.image) : null,
-        author: author ? { ...author, avatar: toPublicUrl(req, author.avatar) } : { name: "N/A" },
-        category_name: category ? category.name : "Chưa phân loại"
+        author: author ? { 
+          id: author.id || author._id.toString(),
+          name: author.name, 
+          avatar: toPublicUrl(req, author.avatar) 
+        } : { name: "N/A" },
+        category_name: category ? category.name : "Chưa phân loại",
+        category: category || { name: "Chưa phân loại" }
       } 
     });
   } catch (e) {
@@ -129,6 +139,6 @@ exports.deletePost = async (req, res) => {
     if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài" });
     res.json({ success: true, message: "Đã xóa thành công" });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    res.status(500).json({ success: false, message: "Lỗi khi xóa" });
   }
 };
