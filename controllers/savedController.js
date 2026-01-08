@@ -13,14 +13,14 @@ exports.toggleSave = async (req, res) => {
         { _id: mongoose.Types.ObjectId.isValid(postId) ? postId : null },
         { id: postId }
       ].filter(Boolean)
-    }).select("id _id");
+    });
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
-    const finalPostId = postId; 
     const userId = String(req.user._id || req.user.id);
+    const finalPostId = String(post._id || post.id);
 
     const exists = await SavedPost.findOne({ 
       user_id: userId, 
@@ -29,10 +29,21 @@ exports.toggleSave = async (req, res) => {
 
     if (exists) {
       await SavedPost.deleteOne({ _id: exists._id });
+      
+      const updatedPost = await Post.findOneAndUpdate(
+        { _id: post._id },
+        { $inc: { likes: -1 } },
+        { new: true }
+      );
+
       return res.json({ 
         success: true, 
         message: "Đã bỏ lưu", 
-        data: { postId: finalPostId, saved: false } 
+        data: { 
+          postId: finalPostId, 
+          saved: false, 
+          likes: updatedPost.likes || 0 
+        } 
       });
     }
 
@@ -41,10 +52,20 @@ exports.toggleSave = async (req, res) => {
       post_id: finalPostId 
     });
 
+    const updatedPost = await Post.findOneAndUpdate(
+      { _id: post._id },
+      { $inc: { likes: 1 } },
+      { new: true }
+    );
+
     return res.json({ 
       success: true, 
       message: "Đã lưu bài viết", 
-      data: { postId: finalPostId, saved: true } 
+      data: { 
+        postId: finalPostId, 
+        saved: true, 
+        likes: updatedPost.likes || 0 
+      } 
     });
 
   } catch (e) {
@@ -73,7 +94,7 @@ exports.getSavedPosts = async (req, res) => {
         { _id: { $in: postIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
         { id: { $in: postIds } }
       ]
-    }).select("id _id title image").lean();
+    }).select("id _id title image likes category_name").lean();
 
     const map = new Map();
     posts.forEach(p => {
@@ -87,7 +108,7 @@ exports.getSavedPosts = async (req, res) => {
         if (!p) return null;
         return {
           ...p,
-          id: p.id || p._id.toString(),
+          id: p._id.toString(), 
           image: toPublicUrl(req, p.image) 
         };
       })
