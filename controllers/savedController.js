@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 
 exports.toggleSave = async (req, res) => {
   try {
-    const { postId } = req.body;
+    const { postId } = req.body; 
     if (!postId) return res.status(400).json({ success: false, message: "Thiếu postId" });
 
     const post = await Post.findOne({
@@ -42,9 +42,9 @@ exports.toggleSave = async (req, res) => {
         success: true, 
         message: "Đã bỏ lưu", 
         data: { 
-          postId: finalPostId, 
+          postId: postId,
           saved: false, 
-          likes: updatedPost ? updatedPost.likes : 0 
+          likes: updatedPost ? Math.max(0, updatedPost.likes) : 0 
         } 
       });
     } else {
@@ -63,7 +63,7 @@ exports.toggleSave = async (req, res) => {
         success: true, 
         message: "Đã lưu bài viết", 
         data: { 
-          postId: finalPostId, 
+          postId: postId, 
           saved: true, 
           likes: updatedPost ? updatedPost.likes : 0 
         } 
@@ -72,7 +72,7 @@ exports.toggleSave = async (req, res) => {
 
   } catch (e) {
     console.error("Lỗi Toggle Save:", e);
-    res.status(500).json({ success: false, message: "Lỗi hệ thống khi xử lý dữ liệu ID" });
+    res.status(500).json({ success: false, message: "Lỗi hệ thống xử lý Tim" });
   }
 };
 
@@ -110,7 +110,7 @@ exports.getSavedPosts = async (req, res) => {
         if (!p) return null;
         return {
           ...p,
-          id: p._id.toString(), 
+          id: p.id || p._id.toString(), 
           image: toPublicUrl(req, p.image) 
         };
       })
@@ -118,8 +118,7 @@ exports.getSavedPosts = async (req, res) => {
 
     res.json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
-    console.error("Lỗi Get Saved Posts:", e);
-    res.status(500).json({ success: false, message: "Lỗi Server khi tải danh sách đã lưu" });
+    res.status(500).json({ success: false, message: "Lỗi Server tải danh sách" });
   }
 };
 
@@ -138,6 +137,6 @@ exports.checkSaved = async (req, res) => {
       data: { postId, saved: !!exists } 
     });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi kiểm tra trạng thái lưu" });
+    res.status(500).json({ success: false, message: "Lỗi kiểm tra" });
   }
 };
