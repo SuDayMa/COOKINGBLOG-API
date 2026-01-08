@@ -23,12 +23,19 @@ exports.getAdminPosts = async (req, res) => {
     const userIds = [...new Set(rows.map(r => r.user_id?.toString()).filter(Boolean))];
     const categoryIds = [...new Set(rows.map(r => r.category_id?.toString()).filter(Boolean))];
 
-    const validUserObjectIds = userIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-    const validCategoryObjectIds = categoryIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-
     const [users, categories] = await Promise.all([
-      User.find({ $or: [{ _id: { $in: validUserObjectIds } }, { id: { $in: userIds } }] }).select("id _id name avatar").lean(),
-      Category.find({ $or: [{ _id: { $in: validCategoryObjectIds } }, { id: { $in: categoryIds } }] }).select("id _id name").lean()
+      User.find({ 
+        $or: [
+          { _id: { $in: userIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } }, 
+          { id: { $in: userIds } }
+        ] 
+      }).select("id _id name avatar").lean(),
+      Category.find({ 
+        $or: [
+          { _id: { $in: categoryIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } }, 
+          { id: { $in: categoryIds } }
+        ] 
+      }).select("id _id name").lean()
     ]);
 
     const userMap = new Map();
@@ -54,9 +61,9 @@ exports.getAdminPosts = async (req, res) => {
           id: u.id || u._id.toString(),
           name: u.name, 
           avatar: u.avatar ? toPublicUrl(req, u.avatar) : null 
-        } : { name: "N/A" },
+        } : { name: "N/A", avatar: null },
         category_name: c ? c.name : "Chưa phân loại",
-        category: c || { name: "Chưa phân loại" }
+        category: c ? { id: c.id || c._id, name: c.name } : { name: "Chưa phân loại" }
       };
     });
 
@@ -82,10 +89,16 @@ exports.getAdminPostDetail = async (req, res) => {
 
     const [author, category] = await Promise.all([
       User.findOne({ 
-        $or: [{ _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, { id: post.user_id }].filter(Boolean)
+        $or: [
+          { _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, 
+          { id: post.user_id }
+        ]
       }).select("id _id name avatar").lean(),
       Category.findOne({
-        $or: [{ _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, { id: post.category_id }].filter(Boolean)
+        $or: [
+          { _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, 
+          { id: post.category_id }
+        ]
       }).select("id _id name").lean()
     ]);
 
@@ -97,10 +110,10 @@ exports.getAdminPostDetail = async (req, res) => {
         author: author ? { 
           id: author.id || author._id.toString(),
           name: author.name, 
-          avatar: toPublicUrl(req, author.avatar) 
-        } : { name: "N/A" },
+          avatar: author.avatar ? toPublicUrl(req, author.avatar) : null 
+        } : { name: "N/A", avatar: null },
         category_name: category ? category.name : "Chưa phân loại",
-        category: category || { name: "Chưa phân loại" }
+        category: category ? { id: category.id || category._id, name: category.name } : { name: "Chưa phân loại" }
       } 
     });
   } catch (e) {
@@ -112,21 +125,18 @@ exports.updatePostStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const { id } = req.params;
-
     if (!["pending", "approved", "hidden"].includes(status)) {
       return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
     }
-
     const post = await Post.findOneAndUpdate(
       { $or: [{ _id: mongoose.Types.ObjectId.isValid(id) ? id : null }, { id: id }].filter(Boolean) },
       { status },
       { new: true }
     );
-    
     if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     res.json({ success: true, data: post });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi cập nhật: " + e.message });
+    res.status(500).json({ success: false, message: e.message });
   }
 };
 
@@ -139,6 +149,6 @@ exports.deletePost = async (req, res) => {
     if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài" });
     res.json({ success: true, message: "Đã xóa thành công" });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi khi xóa" });
+    res.status(500).json({ success: false, message: e.message });
   }
 };
