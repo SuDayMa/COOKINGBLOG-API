@@ -19,19 +19,19 @@ exports.toggleSave = async (req, res) => {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
+    const mongoPostId = String(post._id); 
     const userId = String(req.user._id || req.user.id);
-    const finalPostId = String(post._id || post.id);
 
     const exists = await SavedPost.findOne({ 
       user_id: userId, 
-      post_id: finalPostId 
+      post_id: mongoPostId 
     });
 
     if (exists) {
       await SavedPost.deleteOne({ _id: exists._id });
       
-      const updatedPost = await Post.findOneAndUpdate(
-        { _id: post._id },
+      const updatedPost = await Post.findByIdAndUpdate(
+        post._id,
         { $inc: { likes: -1 } },
         { new: true }
       );
@@ -40,20 +40,20 @@ exports.toggleSave = async (req, res) => {
         success: true, 
         message: "Đã bỏ lưu", 
         data: { 
-          postId: finalPostId, 
+          postId: postId, 
           saved: false, 
-          likes: updatedPost.likes || 0 
+          likes: updatedPost ? updatedPost.likes : 0 
         } 
       });
     }
 
     await SavedPost.create({ 
       user_id: userId, 
-      post_id: finalPostId 
+      post_id: mongoPostId 
     });
 
-    const updatedPost = await Post.findOneAndUpdate(
-      { _id: post._id },
+    const updatedPost = await Post.findByIdAndUpdate(
+      post._id,
       { $inc: { likes: 1 } },
       { new: true }
     );
@@ -62,9 +62,9 @@ exports.toggleSave = async (req, res) => {
       success: true, 
       message: "Đã lưu bài viết", 
       data: { 
-        postId: finalPostId, 
+        postId: postId, 
         saved: true, 
-        likes: updatedPost.likes || 0 
+        likes: updatedPost ? updatedPost.likes : 0 
       } 
     });
 
