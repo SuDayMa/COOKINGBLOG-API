@@ -38,13 +38,15 @@ exports.toggleSave = async (req, res) => {
         { new: true }
       );
 
+      const currentLikes = updatedPost ? Math.max(0, updatedPost.likes) : 0;
+
       return res.json({ 
         success: true, 
         message: "Đã bỏ lưu", 
         data: { 
           postId: postId,
           saved: false, 
-          likes: updatedPost ? Math.max(0, updatedPost.likes) : 0 
+          likes: currentLikes
         } 
       });
     } else {
@@ -52,12 +54,19 @@ exports.toggleSave = async (req, res) => {
         user_id: userId, 
         post_id: finalPostId 
       });
-
-      updatedPost = await Post.findByIdAndUpdate(
-        post._id,
-        { $inc: { likes: 1 } },
-        { new: true }
-      );
+      if (post.likes === null || post.likes === undefined) {
+        updatedPost = await Post.findByIdAndUpdate(
+          post._id,
+          { $set: { likes: 1 } },
+          { new: true }
+        );
+      } else {
+        updatedPost = await Post.findByIdAndUpdate(
+          post._id,
+          { $inc: { likes: 1 } },
+          { new: true }
+        );
+      }
 
       return res.json({ 
         success: true, 
@@ -65,7 +74,7 @@ exports.toggleSave = async (req, res) => {
         data: { 
           postId: postId, 
           saved: true, 
-          likes: updatedPost ? updatedPost.likes : 0 
+          likes: updatedPost ? updatedPost.likes : 1
         } 
       });
     }
@@ -84,7 +93,7 @@ exports.getSavedPosts = async (req, res) => {
 
     const total = await SavedPost.countDocuments({ user_id: userId });
     const savedRecords = await SavedPost.find({ user_id: userId })
-      .sort({ saved_at: -1 })
+      .sort({ saved_at: -1 }) 
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
@@ -111,6 +120,7 @@ exports.getSavedPosts = async (req, res) => {
         return {
           ...p,
           id: p.id || p._id.toString(), 
+          likes: p.likes || 0, 
           image: toPublicUrl(req, p.image) 
         };
       })
@@ -118,6 +128,7 @@ exports.getSavedPosts = async (req, res) => {
 
     res.json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
+    console.error("Lỗi lấy danh sách đã lưu:", e);
     res.status(500).json({ success: false, message: "Lỗi Server tải danh sách" });
   }
 };

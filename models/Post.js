@@ -5,15 +5,27 @@ const postSchema = new mongoose.Schema(
   {
     id: { type: String, default: uuidv4, unique: true, index: true },
     user_id: { type: String, required: true, index: true },
+    
     category_id: { type: String, required: true, index: true }, 
+    
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
     image: { type: String, default: null },
+    
     ingredients: { type: String, default: null },
     steps: { type: String, default: null },
+
+    likes: { 
+      type: Number, 
+      default: 0, 
+      min: 0,
+      index: true 
+    },
+
+    comments: { type: Number, default: 0 },
     status: { 
       type: String, 
-      enum: ["pending", "approved", "hidden"], 
+      enum: ["pending", "approved", "hidden", "rejected"], 
       default: "pending", 
       index: true 
     },
@@ -22,5 +34,7 @@ const postSchema = new mongoose.Schema(
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" } 
   }
 );
+
+postSchema.index({ title: "text", description: "text" });
 
 module.exports = mongoose.model("Post", postSchema);
