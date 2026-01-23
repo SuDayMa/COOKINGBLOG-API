@@ -2,12 +2,6 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    id: { 
-      type: String, 
-      required: true, 
-      unique: true, 
-      index: true 
-    },
     
     name: { type: String, required: true, trim: true },
     
@@ -19,7 +13,11 @@ const userSchema = new mongoose.Schema(
       trim: true 
     },
     
-    password: { type: String, required: true },
+    password: { 
+      type: String, 
+      required: true, 
+      select: false 
+    },
 
     avatar: { type: String, default: null },
     phone: { type: String, default: null },
@@ -40,9 +38,15 @@ const userSchema = new mongoose.Schema(
   },
   { 
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
-    versionKey: false 
+    versionKey: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+userSchema.virtual('id').get(function() {
+  return this._id.toHexString();
+});
 
 userSchema.index({ name: "text", email: "text" });
 

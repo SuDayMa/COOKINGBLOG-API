@@ -3,15 +3,28 @@ const User = require("../../models/User");
 const Category = require("../../models/Category");
 const { toPublicUrl } = require("../../utils/imageHelper");
 
-const safePublicUrl = (req, path) => {
-  try {
-    if (!path || typeof path !== 'string') return null;
-    return toPublicUrl(req, path);
-  } catch (err) {
-    return null;
-  }
+// Helper an toàn để xử lý URL 
+const formatMedia = (req, post) => {
+  return {
+    ...post,
+    id: post._id,
+    images: Array.isArray(post.images) 
+      ? post.images.map(img => toPublicUrl(req, img)) 
+      : [toPublicUrl(req, post.image)], 
+    video: post.video || null,
+    author: post.user_id ? {
+      id: post.user_id._id,
+      name: post.user_id.name,
+      avatar: toPublicUrl(req, post.user_id.avatar)
+    } : { name: "Người dùng không tồn tại", avatar: null },
+    category: post.category_id ? {
+      id: post.category_id._id,
+      name: post.category_id.name
+    } : { name: "Chưa phân loại" }
+  };
 };
 
+// 1. Lấy danh sách bài viết cho Admin 
 exports.getAdminPosts = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
@@ -26,83 +39,50 @@ exports.getAdminPosts = async (req, res) => {
     const [total, rows] = await Promise.all([
       Post.countDocuments(filter),
       Post.find(filter)
+        .populate("user_id", "name avatar")
+        .populate("category_id", "name")
         .sort({ created_at: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean()
     ]);
 
-    const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
-    const categoryIds = [...new Set(rows.map(r => r.category_id).filter(Boolean))];
+    const items = rows.map(p => formatMedia(req, p));
 
-    const [users, categories] = await Promise.all([
-      User.find({ id: { $in: userIds } }).select("id name avatar").lean(),
-      Category.find({ id: { $in: categoryIds } }).select("id name").lean()
-    ]);
-
-    const userMap = new Map(users.map(u => [u.id, u]));
-    const categoryMap = new Map(categories.map(c => [c.id, c]));
-
-    const items = rows.map(p => {
-      const u = userMap.get(p.user_id);
-      const c = categoryMap.get(p.category_id); 
-      
-      return {
-        ...p,
-        image: safePublicUrl(req, p.image),
-        video: p.video || null, 
-        author: u ? { 
-          id: u.id,
-          name: u.name, 
-          avatar: safePublicUrl(req, u.avatar) 
-        } : { name: "Người dùng không tồn tại", avatar: null },
-        category_name: c ? c.name : "Chưa phân loại",
-        category: c ? { id: c.id, name: c.name } : { name: "Chưa phân loại" }
-      };
+    res.status(200).json({ 
+      success: true, 
+      data: { page, limit, total, items } 
     });
-
-    res.status(200).json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
-    console.error("ADMIN GET POSTS ERROR:", e);
-    res.status(500).json({ success: false, message: "Lỗi hệ thống: " + e.message });
+    console.error("ADMIN_GET_POSTS_ERROR:", e.message);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi lấy danh sách" });
   }
 };
 
+// 2. Chi tiết bài viết
 exports.getAdminPostDetail = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const post = await Post.findOne({ id }).lean();
+    const post = await Post.findById(id)
+      .populate("user_id", "name avatar")
+      .populate("category_id", "name")
+      .lean();
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
-    const [author, category] = await Promise.all([
-      User.findOne({ id: post.user_id }).select("id name avatar").lean(),
-      Category.findOne({ id: post.category_id }).select("id name").lean()
-    ]);
-
     res.json({ 
       success: true, 
-      data: { 
-        ...post, 
-        image: safePublicUrl(req, post.image),
-        video: post.video || null,
-        author: author ? { 
-          id: author.id,
-          name: author.name, 
-          avatar: safePublicUrl(req, author.avatar) 
-        } : { name: "Người dùng không tồn tại", avatar: null },
-        category_name: category ? category.name : "Chưa phân loại",
-        category: category ? { id: category.id, name: category.name } : { name: "Chưa phân loại" }
-      } 
+      data: formatMedia(req, post)
     });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    res.status(500).json({ success: false, message: "ID bài viết không hợp lệ hoặc lỗi hệ thống" });
   }
 };
 
+// 3. Cập nhật trạng thái (Duyệt/Ẩn/Từ chối)
 exports.updatePostStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -112,27 +92,30 @@ exports.updatePostStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
     }
 
-    const post = await Post.findOneAndUpdate(
-      { id },
+    const post = await Post.findByIdAndUpdate(
+      id,
       { status },
       { new: true }
     );
     
     if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
-    res.json({ success: true, data: post });
+    
+    res.json({ success: true, message: `Đã chuyển trạng thái sang: ${status}`, data: post });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    res.status(500).json({ success: false, message: "Không thể cập nhật trạng thái" });
   }
 };
 
+// 4. Xóa bài viết
 exports.deletePost = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await Post.findOneAndDelete({ id });
+    
+    const result = await Post.findByIdAndDelete(id);
 
     if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
-    res.json({ success: true, message: "Đã xóa thành công" });
+    res.json({ success: true, message: "Đã xóa bài viết vĩnh viễn" });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    res.status(500).json({ success: false, message: "Lỗi khi xóa bài viết" });
   }
 };

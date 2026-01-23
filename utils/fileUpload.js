@@ -1,4 +1,3 @@
-// utils/fileUpload.js
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
@@ -11,11 +10,34 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    upload_preset: 'dailycook', 
-    allowed_formats: ['jpg', 'png', 'jpeg'],
+  params: async (req, file) => {
+    let resourceType = 'image';
+    if (file.mimetype.startsWith('video')) {
+      resourceType = 'video';
+    }
+
+    return {
+      folder: 'dailycook',
+      resource_type: resourceType, 
+      public_id: Date.now() + '-' + file.originalname.split('.')[0],
+    };
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Định dạng file không hỗ trợ! Chỉ chấp nhận ảnh và video.'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 30 * 1024 * 1024, 
   }
 });
 
-const upload = multer({ storage: storage });
 module.exports = upload;
