@@ -14,12 +14,14 @@ exports.getAdminComments = async (req, res) => {
     if (q) filter.content = new RegExp(q, "i");
     if (["visible", "hidden"].includes(status)) filter.status = status;
 
-    const total = await Comment.countDocuments(filter);
-    const rows = await Comment.find(filter)
-      .sort({ created_at: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    const [total, rows] = await Promise.all([
+      Comment.countDocuments(filter),
+      Comment.find(filter)
+        .sort({ created_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+    ]);
 
     const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     const postIds = [...new Set(rows.map(r => r.post_id).filter(Boolean))];
@@ -37,30 +39,58 @@ exports.getAdminComments = async (req, res) => {
       const p = postMap.get(c.post_id);
       return {
         ...c,
-        user: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : null,
-        post: p ? { ...p, image: toPublicUrl(req, p.image) } : null,
+        id: c.id || c._id.toString(),
+        user: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : { name: "N/A", avatar: null },
+        post: p ? { ...p, image: toPublicUrl(req, p.image) } : { title: "Bài viết đã bị xóa", image: null },
       };
     });
 
     res.status(200).json({ success: true, data: { page, limit, total, items } });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Lỗi lấy danh sách bình luận" });
+    console.error("ADMIN GET COMMENTS ERROR:", e);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi lấy danh sách bình luận" });
   }
 };
 
-// Ẩn/Hiện bình luận
 exports.toggleCommentHidden = async (req, res) => {
-  const c = await Comment.findOne({ id: req.params.id });
-  if (!c) return res.status(404).json({ success: false, message: "Không tìm thấy bình luận" });
-  
-  c.status = c.status === "hidden" ? "visible" : "hidden";
-  await c.save();
-  res.json({ success: true, data: { id: c.id, status: c.status } });
+  try {
+    const { id } = req.params;
+    const c = await Comment.findOne({ id });
+    if (!c) return res.status(404).json({ success: false, message: "Không tìm thấy bình luận" });
+    
+    const newStatus = c.status === "hidden" ? "visible" : "hidden";
+    
+    const updatedCmt = await Comment.findOneAndUpdate(
+      { id },
+      { $set: { status: newStatus } },
+      { new: true }
+    );
+
+    res.json({ 
+      success: true, 
+      message: `Đã chuyển trạng thái sang ${newStatus}`,
+      data: { id: updatedCmt.id, status: updatedCmt.status } 
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Lỗi khi cập nhật trạng thái bình luận" });
+  }
 };
 
-// Xóa bình luận
 exports.deleteComment = async (req, res) => {
-  const result = await Comment.deleteOne({ id: req.params.id });
-  if (result.deletedCount === 0) return res.status(404).json({ success: false, message: "Không tìm thấy bình luận" });
-  res.json({ success: true, message: "Đã xóa bình luận" });
+  try {
+    const { id } = req.params;
+    
+    const cmt = await Comment.findOne({ id });
+    if (!cmt) return res.status(404).json({ success: false, message: "Không tìm thấy bình luận" });
+
+    await Promise.all([
+      Comment.deleteOne({ id }),
+      Post.findOneAndUpdate({ id: cmt.post_id }, { $inc: { comments: -1 } })
+    ]);
+
+    res.json({ success: true, message: "Đã xóa bình luận vĩnh viễn" });
+  } catch (e) {
+    console.error("ADMIN DELETE COMMENT ERROR:", e);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi xóa bình luận" });
+  }
 };

@@ -33,44 +33,26 @@ exports.getPosts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const userIds = [...new Set(posts.map(p => p.user_id?.toString()).filter(Boolean))];
-    const catIds = [...new Set(posts.map(p => p.category_id?.toString()).filter(Boolean))];
+    const userIds = [...new Set(posts.map(p => p.user_id).filter(Boolean))];
+    const catIds = [...new Set(posts.map(p => p.category_id).filter(Boolean))];
 
     const [users, categories] = await Promise.all([
-      User.find({ 
-        $or: [
-          { _id: { $in: userIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
-          { id: { $in: userIds } }
-        ]
-      }).select("id _id name avatar").lean(),
-      Category.find({ 
-        $or: [
-          { _id: { $in: catIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
-          { id: { $in: catIds } }
-        ]
-      }).select("id _id name").lean()
+      User.find({ id: { $in: userIds } }).select("id name avatar").lean(),
+      Category.find({ id: { $in: catIds } }).select("id name").lean()
     ]);
 
-    const userMap = new Map();
-    users.forEach(u => {
-      if (u._id) userMap.set(u._id.toString(), u);
-      if (u.id) userMap.set(u.id.toString(), u);
-    });
-
-    const catMap = new Map();
-    categories.forEach(c => {
-      if (c._id) catMap.set(c._id.toString(), c);
-      if (c.id) catMap.set(c.id.toString(), c);
-    });
+    const userMap = new Map(users.map(u => [u.id, u]));
+    const catMap = new Map(categories.map(c => [c.id, c]));
 
     const items = posts.map(p => {
-      const u = userMap.get(p.user_id?.toString());
-      const c = catMap.get(p.category_id?.toString());
+      const u = userMap.get(p.user_id);
+      const c = catMap.get(p.category_id);
       
       return {
         ...p,
         likes: Number(p.likes || 0),
         image: toPublicUrl(req, p.image), 
+        video: p.video || null, 
         author: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : null, 
         category_name: c ? c.name : "Chưa phân loại"
       };
@@ -78,40 +60,30 @@ exports.getPosts = async (req, res) => {
 
     res.json({ success: true, data: { items } });
   } catch (e) {
-    console.error(e);
+    console.error("Lỗi getPosts:", e);
     res.status(500).json({ success: false, message: "Lỗi Server" });
   }
 };
 
 exports.getMyPosts = async (req, res) => {
   try {
-    const finalUserId = String(req.user._id || req.user.id);
+    const finalUserId = String(req.user.id);
 
-    // Tìm tất cả bài viết của tôi (Suvo)
     const posts = await Post.find({ user_id: finalUserId })
       .sort({ created_at: -1 })
       .lean();
 
-    const catIds = [...new Set(posts.map(p => p.category_id?.toString()).filter(Boolean))];
-    const categories = await Category.find({
-      $or: [
-        { _id: { $in: catIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } },
-        { id: { $in: catIds } }
-      ]
-    }).select("id _id name").lean();
-
-    const catMap = new Map();
-    categories.forEach(c => {
-      if (c._id) catMap.set(c._id.toString(), c);
-      if (c.id) catMap.set(c.id.toString(), c);
-    });
+    const catIds = [...new Set(posts.map(p => p.category_id).filter(Boolean))];
+    const categories = await Category.find({ id: { $in: catIds } }).select("id name").lean();
+    const catMap = new Map(categories.map(c => [c.id, c]));
 
     const items = posts.map(p => {
-      const c = catMap.get(p.category_id?.toString());
+      const c = catMap.get(p.category_id);
       return {
         ...p,
         likes: Number(p.likes || 0), 
         image: toPublicUrl(req, p.image),
+        video: p.video || null,
         category_name: c ? c.name : "Chưa phân loại"
       };
     });
@@ -119,7 +91,7 @@ exports.getMyPosts = async (req, res) => {
     res.json({ success: true, data: { items } });
   } catch (e) {
     console.error("Lỗi getMyPosts:", e);
-    res.status(500).json({ success: false, message: "Không thể tải bài viết của bạn" });
+    res.status(500).json({ success: false, message: "Không thể tải bài viết" });
   }
 };
 
@@ -130,24 +102,38 @@ exports.createPost = async (req, res) => {
     if (!category_id) {
       return res.status(400).json({ success: false, message: "Vui lòng chọn danh mục món ăn" });
     }
-    const finalUserId = String(req.user._id || req.user.id);
-    const finalCategoryId = String(category_id);
 
-    const post = await Post.create({
-      user_id: finalUserId, 
-      category_id: finalCategoryId, 
+    const finalUserId = String(req.user.id);
+    const finalCategoryId = String(category_id);
+    
+    const isVideo = req.file && req.file.mimetype.startsWith('video');
+    const fileUrl = req.file ? req.file.path : null;
+
+    const postData = {
+      id: `post-${Date.now()}`, 
+      user_id: finalUserId,
+      category_id: finalCategoryId,
       title,
       description,
-      image: req.file ? req.file.path : req.body.image, 
       ingredients,
       steps,
-      likes: 0, 
-      status: "pending" 
-    });
+      likes: 0,
+      status: "approved", 
+      post_type: isVideo ? "video" : "image" 
+    };
+
+    if (isVideo) {
+      postData.video = fileUrl; 
+      postData.image = req.body.thumbnail || null; 
+    } else {
+      postData.image = fileUrl; 
+    }
+
+    const post = await Post.create(postData);
 
     res.status(201).json({ success: true, data: post });
   } catch (e) {
-    console.error("Lỗi tạo bài viết:", e); 
-    res.status(400).json({ success: false, message: e.message || "Không thể tạo bài viết" });
+    console.error("Lỗi tạo bài viết:", e);
+    res.status(400).json({ success: false, message: "Không thể tạo bài viết" });
   }
 };

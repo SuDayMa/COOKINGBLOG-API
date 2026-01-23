@@ -1,16 +1,29 @@
 const mongoose = require("mongoose");
-const { v4: uuidv4 } = require("uuid");
 
 const postSchema = new mongoose.Schema(
   {
-    id: { type: String, default: uuidv4, unique: true, index: true },
+    id: { 
+      type: String, 
+      required: true, 
+      unique: true, 
+      index: true 
+    },
     
     user_id: { type: String, required: true, index: true },
     category_id: { type: String, required: true, index: true }, 
     
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
-    image: { type: String, default: null },
+
+    image: { type: String, default: null }, 
+    video: { type: String, default: null }, 
+    
+    post_type: { 
+      type: String, 
+      enum: ["image", "video"], 
+      default: "image",
+      index: true
+    },
     
     ingredients: { type: String, default: null },
     steps: { type: String, default: null },
@@ -21,7 +34,7 @@ const postSchema = new mongoose.Schema(
       min: 0,
       index: true,
       get: v => Math.round(v) || 0,
-      set: v => v === null || v === undefined ? 0 : v
+      set: v => (v === null || v === undefined) ? 0 : v
     },
 
     comments: { type: Number, default: 0 },
@@ -44,7 +57,7 @@ const postSchema = new mongoose.Schema(
 postSchema.index({ title: "text", description: "text" });
 
 postSchema.pre('save', function(next) {
-  if (this.likes === null || this.likes === undefined) {
+  if (typeof this.likes !== 'number') {
     this.likes = 0;
   }
   next();

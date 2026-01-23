@@ -3,37 +3,52 @@ const User = require("../models/User");
 
 module.exports = async function auth(req, res, next) {
   try {
-    const header = req.headers.authorization || "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith("Bearer ") 
+      ? authHeader.split(" ")[1] 
+      : null;
 
     if (!token) {
-      return res.status(401).json({ success: false, message: "Yêu cầu đăng nhập" });
+      return res.status(401).json({ 
+        success: false, 
+        message: "Bạn cần đăng nhập để thực hiện hành động này" 
+      });
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     
+    const user = await User.findById(payload.id)
+      .select("_id role is_blocked email")
+      .lean();
     
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: "Người dùng không tồn tại hoặc đã bị xóa" 
+      });
+    }
+
+    if (user.is_blocked) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Tài khoản của bạn đã bị khóa, vui lòng liên hệ Admin" 
+      });
+    }
+
     req.user = { 
-      id: payload.id, 
-      email: payload.email, 
-      role: payload.role 
+      id: user._id, 
+      email: user.email, 
+      role: user.role 
     };
-
-    const u = await User.findOne({ id: req.user.id }).select("id is_blocked role").lean();
-    
-    if (!u) {
-      return res.status(401).json({ success: false, message: "Người dùng không tồn tại" });
-    }
-
-    if (u.is_blocked) {
-      return res.status(403).json({ success: false, message: "Tài khoản của bạn đã bị khóa" });
-    }
-
-    req.user.role = u.role;
 
     next();
   } catch (err) {
-    const msg = err.name === "TokenExpiredError" ? "Phiên đăng nhập hết hạn" : "Token không hợp lệ";
-    return res.status(401).json({ success: false, message: msg });
+    console.error("AUTH_MIDDLEWARE_ERROR:", err.message);
+
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ success: false, message: "Phiên đăng nhập đã hết hạn" });
+    }
+    
+    return res.status(401).json({ success: false, message: "Token không hợp lệ hoặc đã bị thay đổi" });
   }
 };

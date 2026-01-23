@@ -1,12 +1,21 @@
+// utils/fileUpload.js
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
 
-const formatImageUrl = (req, imagePath) => {
-  if (!imagePath) return null;
-  if (/^https?:\/\//i.test(imagePath)) return imagePath;
-  
-  const cleanPath = String(imagePath).replace(/^\/+/, "");
-  const finalPath = cleanPath.startsWith("uploads/") ? cleanPath : `uploads/${cleanPath}`;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_KEY,
+  api_secret: process.env.CLOUDINARY_SECRET
+});
 
-  return `${req.protocol}://${req.get("host")}/${finalPath}`;
-};
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    upload_preset: 'dailycook', 
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+  }
+});
 
-module.exports = { formatImageUrl };
+const upload = multer({ storage: storage });
+module.exports = upload;

@@ -1,12 +1,30 @@
 const mongoose = require("mongoose");
-const { v4: uuidv4 } = require("uuid");
 
 const savedPostSchema = new mongoose.Schema(
   {
-    id: { type: String, default: uuidv4, unique: true, index: true },
-    user_id: { type: String, required: true, index: true }, 
-    post_id: { type: String, required: true, index: true },
-    saved_at: { type: Date, default: Date.now },
+    id: { 
+      type: String, 
+      required: true, 
+      unique: true, 
+      index: true 
+    },
+    
+    user_id: { 
+      type: String, 
+      required: true, 
+      index: true 
+    }, 
+    
+    post_id: { 
+      type: String, 
+      required: true, 
+      index: true 
+    },
+    
+    saved_at: { 
+      type: Date, 
+      default: Date.now 
+    },
   },
   { 
     timestamps: false,

@@ -2,7 +2,7 @@ const Post = require("../../models/Post");
 const User = require("../../models/User");
 const Category = require("../../models/Category");
 const { toPublicUrl } = require("../../utils/imageHelper");
-const mongoose = require("mongoose");
+
 const safePublicUrl = (req, path) => {
   try {
     if (!path || typeof path !== 'string') return null;
@@ -19,7 +19,7 @@ exports.getAdminPosts = async (req, res) => {
     const status = (req.query.status || "").trim();
 
     const filter = {};
-    if (["pending", "approved", "hidden"].includes(status)) {
+    if (["pending", "approved", "hidden", "rejected"].includes(status)) {
       filter.status = status;
     }
 
@@ -32,50 +32,32 @@ exports.getAdminPosts = async (req, res) => {
         .lean()
     ]);
 
-    const userIds = [...new Set(rows.map(r => r.user_id?.toString()).filter(Boolean))];
-    const categoryIds = [...new Set(rows.map(r => r.category_id?.toString()).filter(Boolean))];
+    const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
+    const categoryIds = [...new Set(rows.map(r => r.category_id).filter(Boolean))];
 
     const [users, categories] = await Promise.all([
-      User.find({ 
-        $or: [
-          { _id: { $in: userIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } }, 
-          { id: { $in: userIds } }
-        ] 
-      }).select("id _id name avatar").lean(),
-      Category.find({ 
-        $or: [
-          { _id: { $in: categoryIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } }, 
-          { id: { $in: categoryIds } }
-        ] 
-      }).select("id _id name").lean()
+      User.find({ id: { $in: userIds } }).select("id name avatar").lean(),
+      Category.find({ id: { $in: categoryIds } }).select("id name").lean()
     ]);
 
-    const userMap = new Map();
-    users.forEach(u => {
-      if (u._id) userMap.set(u._id.toString(), u);
-      if (u.id) userMap.set(u.id.toString(), u);
-    });
-
-    const categoryMap = new Map();
-    categories.forEach(c => {
-      if (c._id) categoryMap.set(c._id.toString(), c);
-      if (c.id) categoryMap.set(c.id.toString(), c);
-    });
+    const userMap = new Map(users.map(u => [u.id, u]));
+    const categoryMap = new Map(categories.map(c => [c.id, c]));
 
     const items = rows.map(p => {
-      const u = userMap.get(p.user_id?.toString());
-      const c = categoryMap.get(p.category_id?.toString()); 
+      const u = userMap.get(p.user_id);
+      const c = categoryMap.get(p.category_id); 
       
       return {
         ...p,
         image: safePublicUrl(req, p.image),
+        video: p.video || null, 
         author: u ? { 
-          id: u.id || u._id.toString(),
+          id: u.id,
           name: u.name, 
           avatar: safePublicUrl(req, u.avatar) 
-        } : { name: "Người dùng hệ thống", avatar: null },
+        } : { name: "Người dùng không tồn tại", avatar: null },
         category_name: c ? c.name : "Chưa phân loại",
-        category: c ? { id: c.id || c._id.toString(), name: c.name } : { name: "Chưa phân loại" }
+        category: c ? { id: c.id, name: c.name } : { name: "Chưa phân loại" }
       };
     });
 
@@ -90,30 +72,15 @@ exports.getAdminPostDetail = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const post = await Post.findOne({
-      $or: [
-        { _id: mongoose.Types.ObjectId.isValid(id) ? id : null },
-        { id: id }
-      ].filter(Boolean)
-    }).lean();
+    const post = await Post.findOne({ id }).lean();
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
     const [author, category] = await Promise.all([
-      User.findOne({ 
-        $or: [
-          { _id: mongoose.Types.ObjectId.isValid(post.user_id) ? post.user_id : null }, 
-          { id: post.user_id?.toString() }
-        ].filter(Boolean)
-      }).select("id _id name avatar").lean(),
-      Category.findOne({
-        $or: [
-          { _id: mongoose.Types.ObjectId.isValid(post.category_id) ? post.category_id : null }, 
-          { id: post.category_id?.toString() }
-        ].filter(Boolean)
-      }).select("id _id name").lean()
+      User.findOne({ id: post.user_id }).select("id name avatar").lean(),
+      Category.findOne({ id: post.category_id }).select("id name").lean()
     ]);
 
     res.json({ 
@@ -121,13 +88,14 @@ exports.getAdminPostDetail = async (req, res) => {
       data: { 
         ...post, 
         image: safePublicUrl(req, post.image),
+        video: post.video || null,
         author: author ? { 
-          id: author.id || author._id.toString(),
+          id: author.id,
           name: author.name, 
           avatar: safePublicUrl(req, author.avatar) 
-        } : { name: "Người dùng hệ thống", avatar: null },
+        } : { name: "Người dùng không tồn tại", avatar: null },
         category_name: category ? category.name : "Chưa phân loại",
-        category: category ? { id: category.id || category._id.toString(), name: category.name } : { name: "Chưa phân loại" }
+        category: category ? { id: category.id, name: category.name } : { name: "Chưa phân loại" }
       } 
     });
   } catch (e) {
@@ -140,12 +108,12 @@ exports.updatePostStatus = async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
 
-    if (!["pending", "approved", "hidden"].includes(status)) {
+    if (!["pending", "approved", "hidden", "rejected"].includes(status)) {
       return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
     }
 
     const post = await Post.findOneAndUpdate(
-      { $or: [{ _id: mongoose.Types.ObjectId.isValid(id) ? id : null }, { id: id }].filter(Boolean) },
+      { id },
       { status },
       { new: true }
     );
@@ -160,9 +128,7 @@ exports.updatePostStatus = async (req, res) => {
 exports.deletePost = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await Post.findOneAndDelete({
-      $or: [{ _id: mongoose.Types.ObjectId.isValid(id) ? id : null }, { id: id }].filter(Boolean)
-    });
+    const result = await Post.findOneAndDelete({ id });
 
     if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     res.json({ success: true, message: "Đã xóa thành công" });
