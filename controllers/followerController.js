@@ -1,7 +1,7 @@
-const Follower = require("../../models/Follower"); 
-const User = require("../../models/User");         
-const Notification = require("../../models/Notification");
-const { toPublicUrl } = require("../../utils/imageHelper");
+const Follower = require("../models/Follower"); 
+const User = require("../models/User");         
+const Notification = require("../models/Notification");
+const { toPublicUrl } = require("../utils/imageHelper");
 
 exports.toggleFollow = async (req, res) => {
   try {

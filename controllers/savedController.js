@@ -1,6 +1,6 @@
-const SavedPost = require("../../models/SavedPost");
-const Post = require("../../models/Post");
-const { toPublicUrl } = require("../../utils/imageHelper");
+const SavedPost = require("../models/SavedPost");
+const Post = require("../models/Post");
+const { toPublicUrl } = require("../utils/imageHelper");
 
 exports.toggleSave = async (req, res) => {
   try {

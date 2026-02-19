@@ -1,5 +1,5 @@
-const Report = require("../../models/Report"); 
-const Post = require("../../models/Post");     
+const Report = require("../models/Report"); 
+const Post = require("../models/Post");     
 
 exports.createReport = async (req, res) => {
   try {

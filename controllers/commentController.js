@@ -1,8 +1,8 @@
-const Comment = require("../../models/Comment"); 
-const Post = require("../../models/Post");       
-const User = require("../../models/User");       
-const Notification = require("../../models/Notification");
-const { toPublicUrl } = require("../../utils/imageHelper");
+const Comment = require("../models/Comment"); 
+const Post = require("../models/Post");       
+const User = require("../models/User");       
+const Notification = require("../models/Notification");
+const { toPublicUrl } = require("../utils/imageHelper");
 
 exports.getCommentsByPost = async (req, res) => {
   try {

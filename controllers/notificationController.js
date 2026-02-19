@@ -1,6 +1,6 @@
-const Notification = require("../../models/Notification"); // Lùi 2 cấp
-const User = require("../../models/User");         // Lùi 2 cấp
-const { toPublicUrl } = require("../../utils/imageHelper");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
+const { toPublicUrl } = require("../utils/imageHelper");
 
 // 1. LẤY DANH SÁCH THÔNG BÁO
 exports.getMyNotifications = async (req, res) => {
