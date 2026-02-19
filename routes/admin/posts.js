@@ -8,7 +8,7 @@ console.log("Post Controller Methods:", Object.keys(postController));
 
 router.use(verifyToken, adminOnly);
 
-router.get("/", postController.getAdminPosts);+
+router.get("/", postController.getAdminPosts);
 
 router.get("/:id", postController.getAdminPostDetail); 
 

@@ -3,28 +3,39 @@ const User = require("../../models/User");
 const Category = require("../../models/Category");
 const { toPublicUrl } = require("../../utils/imageHelper");
 
-// Helper an toàn để xử lý URL 
 const formatMedia = (req, post) => {
+  if (!post) return null;
+
   return {
     ...post,
     id: post._id,
-    images: Array.isArray(post.images) 
+    
+    // 1. XỬ LÝ ẢNH: Trả về mảng images dù data lưu kiểu gì
+    images: Array.isArray(post.images) && post.images.length > 0
       ? post.images.map(img => toPublicUrl(req, img)) 
-      : [toPublicUrl(req, post.image)], 
-    video: post.video || null,
+      : (post.image ? [toPublicUrl(req, post.image)] : []), 
+    
+    // 2. XỬ LÝ VIDEO: Chuyển path thành URL công khai hoàn chỉnh
+    video: post.video ? toPublicUrl(req, post.video) : null,
+
+    // 3. THÔNG TIN TÁC GIẢ (An toàn): Không bị crash nếu user bị xóa
     author: post.user_id ? {
-      id: post.user_id._id,
-      name: post.user_id.name,
+      id: post.user_id._id || post.user_id,
+      name: post.user_id.name || "Người dùng ẩn danh",
       avatar: toPublicUrl(req, post.user_id.avatar)
-    } : { name: "Người dùng không tồn tại", avatar: null },
+    } : { id: null, name: "Người dùng không tồn tại", avatar: null },
+
+    // 4. THÔNG TIN DANH MỤC (An toàn): Không bị crash nếu category bị xóa
     category: post.category_id ? {
-      id: post.category_id._id,
-      name: post.category_id.name
-    } : { name: "Chưa phân loại" }
+      id: post.category_id._id || post.category_id,
+      name: post.category_id.name || "Chưa phân loại"
+    } : { id: null, name: "Chưa phân loại" }
   };
 };
 
-// 1. Lấy danh sách bài viết cho Admin 
+// --- CÁC HÀM XỬ LÝ CHÍNH ---
+
+// 1. Lấy danh sách bài viết (Có phân trang, lọc theo trạng thái)
 exports.getAdminPosts = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
@@ -47,19 +58,26 @@ exports.getAdminPosts = async (req, res) => {
         .lean()
     ]);
 
-    const items = rows.map(p => formatMedia(req, p));
+    // Format lại dữ liệu và loại bỏ các phần tử lỗi
+    const items = (rows || []).map(p => formatMedia(req, p)).filter(Boolean);
 
     res.status(200).json({ 
       success: true, 
-      data: { page, limit, total, items } 
+      data: { 
+        page, 
+        limit, 
+        total, 
+        items,
+        totalPages: Math.ceil(total / limit)
+      } 
     });
   } catch (e) {
-    console.error("ADMIN_GET_POSTS_ERROR:", e.message);
-    res.status(500).json({ success: false, message: "Lỗi hệ thống khi lấy danh sách" });
+    console.error("🔥 ADMIN_GET_POSTS_ERROR:", e.stack);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống: " + e.message });
   }
 };
 
-// 2. Chi tiết bài viết
+// 2. Lấy chi tiết bài viết theo ID
 exports.getAdminPostDetail = async (req, res) => {
   try {
     const { id } = req.params;
@@ -78,11 +96,11 @@ exports.getAdminPostDetail = async (req, res) => {
       data: formatMedia(req, post)
     });
   } catch (e) {
-    res.status(500).json({ success: false, message: "ID bài viết không hợp lệ hoặc lỗi hệ thống" });
+    res.status(500).json({ success: false, message: "ID bài viết không hợp lệ" });
   }
 };
 
-// 3. Cập nhật trạng thái (Duyệt/Ẩn/Từ chối)
+// 3. Duyệt bài / Thay đổi trạng thái bài viết
 exports.updatePostStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -94,27 +112,31 @@ exports.updatePostStatus = async (req, res) => {
 
     const post = await Post.findByIdAndUpdate(
       id,
-      { status },
+      { $set: { status } },
       { new: true }
-    );
+    ).lean();
     
     if (!post) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     
-    res.json({ success: true, message: `Đã chuyển trạng thái sang: ${status}`, data: post });
+    res.json({ 
+      success: true, 
+      message: `Đã cập nhật trạng thái sang: ${status}`, 
+      data: post 
+    });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Không thể cập nhật trạng thái" });
+    res.status(500).json({ success: false, message: "Lỗi cập nhật trạng thái" });
   }
 };
 
-// 4. Xóa bài viết
+// 4. Xóa bài viết vĩnh viễn
 exports.deletePost = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const result = await Post.findByIdAndDelete(id);
 
     if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
-    res.json({ success: true, message: "Đã xóa bài viết vĩnh viễn" });
+    
+    res.json({ success: true, message: "Đã xóa bài viết thành công" });
   } catch (e) {
     res.status(500).json({ success: false, message: "Lỗi khi xóa bài viết" });
   }
