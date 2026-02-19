@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../../middleware/auth");
-const followerController = require("../controllers/followerController");
+const followerController = require("../../controllers/followerController");
 
 
 router.post("/toggle", auth, followerController.toggleFollow);
