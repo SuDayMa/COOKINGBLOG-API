@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 const postController = require("../../controllers/admin/postController");
 const { verifyToken } = require("../../middleware/auth");
-const adminOnly = require("../middlewares/adminOnly");
+const adminOnly = require("../../middleware/adminOnly");
 
 console.log("Post Controller Methods:", Object.keys(postController));
 
 router.use(verifyToken, adminOnly);
 
-router.get("/", postController.getAdminPosts);
+router.get("/", postController.getAdminPosts);+
 
 router.get("/:id", postController.getAdminPostDetail); 
 
