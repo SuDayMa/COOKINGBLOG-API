@@ -4,7 +4,7 @@ const multer = require('multer');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
-  api_key: process.env.CLOUDINARY_KEY,
+  api_key: process.env.CLOUDINARY_API_KEY, 
   api_secret: process.env.CLOUDINARY_SECRET
 });
 
@@ -19,7 +19,7 @@ const storage = new CloudinaryStorage({
     return {
       folder: 'dailycook',
       resource_type: resourceType, 
-      public_id: Date.now() + '-' + file.originalname.split('.')[0],
+      public_id: Date.now() + '-' + file.originalname.replace(/\.[^/.]+$/, ""),
     };
   },
 });
@@ -36,7 +36,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 30 * 1024 * 1024, 
+    fileSize: 30 * 1024 * 1024, // Giới hạn 30MB
   }
 });
 
