@@ -86,7 +86,7 @@ exports.createPost = async (req, res) => {
       steps: safeParse(steps),
       images: imageUrls,
       video: videoUrl,
-      status: "approved" // Tạm thời để approved để test cho nhanh
+      status: "pending" 
     });
 
     res.status(201).json({ success: true, data: post });
