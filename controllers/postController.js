@@ -85,7 +85,7 @@ exports.createPost = async (req, res) => {
       ingredients: safeParse(ingredients),
       steps: safeParse(steps),
       images: imageUrls,
-      video: videoUrl,
+      video: videoUrl,  
       status: "pending" 
     });
 
