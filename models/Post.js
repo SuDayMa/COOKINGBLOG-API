@@ -2,11 +2,9 @@ const mongoose = require("mongoose");
 
 const postSchema = new mongoose.Schema(
   {
-  
-    
     user_id: { 
       type: mongoose.Schema.Types.ObjectId, 
-      ref: "User",                         
+      ref: "User",                  
       required: true, 
       index: true 
     },
@@ -21,8 +19,10 @@ const postSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
 
-    images: [{ type: String }], 
+    images: { type: [String], default: [] }, 
     
+    image: { type: String },
+
     video: { type: String, default: null }, 
     
     post_type: { 
@@ -32,9 +32,9 @@ const postSchema = new mongoose.Schema(
       index: true
     },
     
-    ingredients: { type: Array, default: [] },
+    ingredients: { type: mongoose.Schema.Types.Mixed, default: [] },
     
-    steps: { type: Array, default: [] },
+    steps: { type: mongoose.Schema.Types.Mixed, default: [] },
 
     likes: { 
       type: Number, 
