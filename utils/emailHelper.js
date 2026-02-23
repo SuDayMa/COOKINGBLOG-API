@@ -13,25 +13,30 @@ const sendOTPEmail = async (email, otp) => {
       refresh_token: process.env.GMAIL_REFRESH_TOKEN
     });
 
-    const accessToken = await oauth2Client.getAccessToken();
+    // Ép lấy Access Token mới
+    const { token } = await oauth2Client.getAccessToken();
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
         type: 'OAuth2',
         user: process.env.EMAIL_USER,
         clientId: process.env.GMAIL_CLIENT_ID,
         clientSecret: process.env.GMAIL_CLIENT_SECRET,
         refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-        accessToken: accessToken.token,
+        accessToken: token,
       },
+      // KHÓA CHỐT Ở ĐÂY: Ép dùng IPv4 để tránh lỗi ENETUNREACH
+      family: 4 
     });
 
     const mailOptions = {
       from: `"Daily Cook 🍳" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Mã xác thực tài khoản Daily Cook",
-      html: `<h3>Mã OTP của bạn là: <span style="color: #f59e0b;">${otp}</span></h3>`,
+      html: `<h2 style="color: #f59e0b;">Mã OTP của bạn là: ${otp}</h2>`,
     };
 
     const info = await transporter.sendMail(mailOptions);
