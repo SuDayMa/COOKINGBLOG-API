@@ -3,34 +3,42 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false, // false cho cổng 587
+  secure: false, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  // THÊM ĐOẠN NÀY ĐỂ FIX LỖI TIMEOUT TRÊN CLOUD
-  connectionTimeout: 10000, // 10 giây không kết nối được thì báo lỗi ngay
-  greetingTimeout: 10000,
+  connectionTimeout: 10000, 
+  socketTimeout: 10000,
+  dnsTimeout: 10000,
+  family: 4, 
   tls: {
-    rejectUnauthorized: false, // Bỏ qua lỗi chứng chỉ nếu có
+    rejectUnauthorized: false, 
+    minVersion: 'TLSv1.2'
   }
 });
 
-const sendOTPEmail = async (email, otp) => {    
+const sendOTPEmail = async (email, otp) => {
   try {
     const mailOptions = {
       from: `"Daily Cook 🍳" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Mã xác thực tài khoản Daily Cook",
-      html: `<h1>Mã OTP của bạn là: ${otp}</h1>`, 
+      html: `
+        <div style="font-family: Arial; padding: 20px;">
+          <h2>Mã OTP của bạn là: <span style="color: #f59e0b;">${otp}</span></h2>
+          <p>Mã có hiệu lực trong 5 phút.</p>
+        </div>
+      `,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent: " + info.response);
+    console.log("✅ [Email Service] Gửi thành công:", info.response);
     return info;
   } catch (error) {
-    console.error("🔥 NODEMAILER ERROR:", error.message);
-    throw error; // Ném lỗi để Controller bắt được
+    // Log chi tiết để Su dễ theo dõi
+    console.error("🔥 [Email Service] Lỗi kết nối Gmail:", error.message);
+    throw error; 
   }
 };
 
