@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User"); 
 const { toPublicUrl } = require("../utils/imageHelper");
+const { sendOTPEmail } = require("../utils/emailHelper"); // Import helper Sự vừa tạo
 
 const signToken = (user) => {
     const secret = process.env.JWT_SECRET;
@@ -20,32 +21,86 @@ const signToken = (user) => {
     });
 };
 
+// 1. ĐĂNG KÝ: Tạo User ở trạng thái chờ và gửi OTP về Gmail
 exports.register = async (req, res) => {
     try {
-        const { name, email, password } = req.body || {};
+        const { name, email, password, phone } = req.body || {};
         if (!name || !email || !password) {
             return res.status(400).json({ success: false, message: "Vui lòng nhập đầy đủ thông tin" });
         }
 
         const emailClean = email.toLowerCase().trim();
         const exists = await User.findOne({ email: emailClean });
-        if (exists) {
+        
+        // Nếu user đã tồn tại và đã xác thực xong xuôi
+        if (exists && exists.isVerified) {
             return res.status(409).json({ success: false, message: "Email này đã được đăng ký" });
         }
 
+        // Tạo mã OTP 6 số ngẫu nhiên
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = Date.now() + 5 * 60 * 1000; // Hết hạn sau 5 phút
         const hashed = await bcrypt.hash(password, 10);
-        
-        const user = await User.create({ 
-            name: name.trim(), 
-            email: emailClean, 
-            password: hashed,
-            role: "user"
-        });
 
+        // upsert: true giúp cập nhật lại thông tin/OTP mới nếu đăng ký lại mà chưa verify
+        const user = await User.findOneAndUpdate(
+            { email: emailClean },
+            { 
+                name: name.trim(), 
+                password: hashed,
+                phone: phone || null,
+                role: "user",
+                otp,
+                otpExpires,
+                isVerified: false 
+            },
+            { upsert: true, new: true }
+        );
+
+        // Gửi mã qua Helper trong utils
+        await sendOTPEmail(emailClean, otp);
+
+        res.status(200).json({
+            success: true,
+            message: "Mã OTP đã được gửi về Gmail của bạn"
+        });
+    } catch (e) {
+        console.error("REGISTER ERROR:", e.message);
+        res.status(500).json({ success: false, message: "Lỗi hệ thống khi đăng ký" });
+    }
+};
+
+// 2. XÁC THỰC OTP: Kiểm tra mã Pin và kích hoạt tài khoản
+exports.verifyOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ success: false, message: "Thiếu email hoặc mã OTP" });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password");
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Người dùng không tồn tại" });
+        }
+
+        // Kiểm tra mã OTP khớp không và còn hạn không
+        if (user.otp !== otp || user.otpExpires < Date.now()) {
+            return res.status(400).json({ success: false, message: "Mã xác thực không đúng hoặc đã hết hạn" });
+        }
+
+        // Kích hoạt tài khoản và dọn dẹp OTP
+        user.isVerified = true;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        // Đăng ký và Verify xong thì cho đăng nhập luôn (cấp Token)
         const access_token = signToken(user);
 
-        res.status(201).json({
+        res.status(200).json({
             success: true,
+            message: "Xác thực thành công",
             data: { 
                 user: { 
                     id: user._id, 
@@ -58,11 +113,12 @@ exports.register = async (req, res) => {
             }
         });
     } catch (e) {
-        console.error("REGISTER ERROR:", e.message);
-        res.status(500).json({ success: false, message: "Lỗi hệ thống khi đăng ký" });
+        console.error("VERIFY OTP ERROR:", e.message);
+        res.status(500).json({ success: false, message: "Lỗi hệ thống khi xác thực" });
     }
 };
 
+// 3. ĐĂNG NHẬP: Kiểm tra thêm điều kiện isVerified
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body || {};
@@ -75,6 +131,14 @@ exports.login = async (req, res) => {
         
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ success: false, message: "Email hoặc mật khẩu không chính xác" });
+        }
+
+        // CHẶN: Nếu tài khoản chưa verify Gmail
+        if (!user.isVerified) {
+            return res.status(403).json({ 
+                success: false, 
+                message: "Tài khoản chưa xác thực. Vui lòng kiểm tra mã OTP trong Gmail." 
+            });
         }
 
         if (user.is_blocked) {

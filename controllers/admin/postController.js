@@ -25,7 +25,6 @@ const formatMedia = (req, post) => {
       avatar: toPublicUrl(req, post.user_id.avatar)
     } : { id: null, name: "Người dùng không tồn tại", avatar: null },
 
-    // 4. THÔNG TIN DANH MỤC (An toàn): Không bị crash nếu category bị xóa
     category: post.category_id ? {
       id: post.category_id._id || post.category_id,
       name: post.category_id.name || "Chưa phân loại"
@@ -33,7 +32,6 @@ const formatMedia = (req, post) => {
   };
 };
 
-// --- CÁC HÀM XỬ LÝ CHÍNH ---
 
 // 1. Lấy danh sách bài viết (Có phân trang, lọc theo trạng thái)
 exports.getAdminPosts = async (req, res) => {
@@ -140,4 +138,4 @@ exports.deletePost = async (req, res) => {
   } catch (e) {
     res.status(500).json({ success: false, message: "Lỗi khi xóa bài viết" });
   }
-};
+};  

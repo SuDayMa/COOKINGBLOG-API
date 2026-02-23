@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    
     name: { type: String, required: true, trim: true },
     
     email: { 
@@ -34,6 +33,21 @@ const userSchema = new mongoose.Schema(
       type: Boolean, 
       default: false, 
       index: true 
+    },
+
+  // --- OPT XÁC THỰC EMAIL ---
+    otp: { 
+      type: String, 
+      default: null 
+    },
+    otpExpires: { 
+      type: Date, 
+      default: null 
+    },
+    isVerified: { 
+      type: Boolean, 
+      default: false, 
+      index: true
     },
   },
   { 
