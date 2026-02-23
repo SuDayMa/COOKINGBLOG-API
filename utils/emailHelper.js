@@ -1,49 +1,34 @@
-const nodemailer = require('nodemailer');
-const { google } = require('googleapis');
+const { Resend } = require('resend');
+
+// Khởi tạo Resend với API Key từ Render
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendOTPEmail = async (email, otp) => {
   try {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GMAIL_CLIENT_ID,
-      process.env.GMAIL_CLIENT_SECRET,
-      "https://developers.google.com/oauthplayground"
-    );
+    console.log(`📡 Đang gửi OTP qua Resend API tới: ${email}`);
 
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GMAIL_REFRESH_TOKEN
-    });
-
-    // Ép lấy Access Token mới
-    const { token } = await oauth2Client.getAccessToken();
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        type: 'OAuth2',
-        user: process.env.EMAIL_USER,
-        clientId: process.env.GMAIL_CLIENT_ID,
-        clientSecret: process.env.GMAIL_CLIENT_SECRET,
-        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-        accessToken: token,
-      },
-      // KHÓA CHỐT Ở ĐÂY: Ép dùng IPv4 để tránh lỗi ENETUNREACH
-      family: 4 
-    });
-
-    const mailOptions = {
-      from: `"Daily Cook 🍳" <${process.env.EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: 'Daily Cook <onboarding@resend.dev>', // Dùng email này khi chưa có domain riêng
       to: email,
-      subject: "Mã xác thực tài khoản Daily Cook",
-      html: `<h2 style="color: #f59e0b;">Mã OTP của bạn là: ${otp}</h2>`,
-    };
+      subject: 'Mã xác thực tài khoản Daily Cook',
+      html: `
+        <div style="font-family: Arial; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #f59e0b;">Xác thực Daily Cook</h2>
+          <p>Mã OTP của bạn là: <b style="font-size: 24px;">${otp}</b></p>
+          <p>Mã hết hạn sau 5 phút.</p>
+        </div>
+      `,
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ [Gmail API] GỬI OTP THÀNH CÔNG!");
-    return info;
+    if (error) {
+      console.error("🔥 Lỗi Resend:", error.message);
+      throw new Error(error.message);
+    }
+
+    console.log("✅ [Resend] GỬI MAIL THÀNH CÔNG!", data.id);
+    return data;
   } catch (error) {
-    console.error("🔥 [Gmail API Error]:", error.message);
+    console.error("🔥 [Resend Exception]:", error.message);
     throw error;
   }
 };
