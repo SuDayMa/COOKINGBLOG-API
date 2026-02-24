@@ -1,34 +1,27 @@
-const { Resend } = require('resend');
-
-// Khởi tạo Resend với API Key từ Render
-const resend = new Resend(process.env.RESEND_API_KEY);
+const emailjs = require('@emailjs/nodejs');
 
 const sendOTPEmail = async (email, otp) => {
   try {
-    console.log(`📡 Đang gửi OTP qua Resend API tới: ${email}`);
+    console.log(`📡 Đang gửi OTP qua EmailJS tới: ${email}`);
 
-    const { data, error } = await resend.emails.send({
-      from: 'Daily Cook <onboarding@resend.dev>', // Dùng email này khi chưa có domain riêng
-      to: email,
-      subject: 'Mã xác thực tài khoản Daily Cook',
-      html: `
-        <div style="font-family: Arial; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #f59e0b;">Xác thực Daily Cook</h2>
-          <p>Mã OTP của bạn là: <b style="font-size: 24px;">${otp}</b></p>
-          <p>Mã hết hạn sau 5 phút.</p>
-        </div>
-      `,
-    });
+    const result = await emailjs.send(
+      process.env.EMAILJS_SERVICE_ID,
+      process.env.EMAILJS_TEMPLATE_ID,
+      {
+        to_email: email,      // Phải khớp với {{to_email}} trong Template
+        otp: otp,             // Phải khớp với {{otp}} trong Template
+        reply_to: "dragongamingtv2k5@gmail.com",
+      },
+      {
+        publicKey: process.env.EMAILJS_PUBLIC_KEY,
+        privateKey: process.env.EMAILJS_PRIVATE_KEY,
+      }
+    );
 
-    if (error) {
-      console.error("🔥 Lỗi Resend:", error.message);
-      throw new Error(error.message);
-    }
-
-    console.log("✅ [Resend] GỬI MAIL THÀNH CÔNG!", data.id);
-    return data;
+    console.log("✅ [EmailJS] GỬI MAIL THÀNH CÔNG!", result.status);
+    return result;
   } catch (error) {
-    console.error("🔥 [Resend Exception]:", error.message);
+    console.error("🔥 [EmailJS Error]:", error);
     throw error;
   }
 };
