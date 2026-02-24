@@ -58,7 +58,7 @@ exports.register = async (req, res) => {
         );
 
         // Gửi mã qua Helper trong utils
-        await sendOTPEmail(emailClean, otp);
+        await sendOTPEmail(emailClean, otp, name);
 
         res.status(200).json({
             success: true,

@@ -1,6 +1,6 @@
 const emailjs = require('@emailjs/nodejs');
 
-const sendOTPEmail = async (email, otp) => {
+const sendOTPEmail = async (email, otp, name) => {
   try {
     console.log(`📡 Đang gửi OTP qua EmailJS tới: ${email}`);
 
@@ -8,9 +8,11 @@ const sendOTPEmail = async (email, otp) => {
       process.env.EMAILJS_SERVICE_ID,
       process.env.EMAILJS_TEMPLATE_ID,
       {
-        to_email: email,      // Phải khớp với {{to_email}} trong Template
+        to_email: email,
+        name: name,      // Phải khớp với {{to_email}} trong Template
         otp: otp,             // Phải khớp với {{otp}} trong Template
         reply_to: "dragongamingtv2k5@gmail.com",
+        time: "5 phút",
       },
       {
         publicKey: process.env.EMAILJS_PUBLIC_KEY,
