@@ -12,11 +12,16 @@ exports.createReport = async (req, res) => {
       });
     }
 
-    const post = await Post.findOne({ id: postId });
+    const post = await Post.findById(postId); 
+    
     if (!post) {
-      return res.status(404).json({ success: false, message: "Bài viết không tồn tại" });
+      return res.status(404).json({ 
+        success: false, 
+        message: "Bài viết không tồn tại" 
+      });
     }
 
+    // Kiểm tra xem đã báo cáo chưa (Sửa post_id: postId)
     const existingReport = await Report.findOne({
       reporter_id: req.user.id,
       post_id: postId,
@@ -30,8 +35,8 @@ exports.createReport = async (req, res) => {
       });
     }
 
+    // Tạo báo cáo mới
     const report = await Report.create({
-      id: `report-${Date.now()}`, 
       reporter_id: String(req.user.id),
       post_id: String(postId),
       reason,
