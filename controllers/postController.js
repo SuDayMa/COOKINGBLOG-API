@@ -28,9 +28,8 @@ exports.getPosts = async (req, res) => {
     const items = posts.map(p => ({
       ...p,
       id: p._id, 
-      // Đảm bảo images luôn là mảng để App không bị crash
       images: (p.images || []).map(img => toPublicUrl(req, img)),
-      video: p.video || null,
+      video: p.video ? toPublicUrl(req, p.video) : null,
       author: p.user_id ? { ...p.user_id, avatar: toPublicUrl(req, p.user_id.avatar) } : null,
       category_name: p.category_id ? p.category_id.name : "Chưa phân loại"
     }));
@@ -38,46 +37,75 @@ exports.getPosts = async (req, res) => {
     res.json({ success: true, data: { items } });
   } catch (e) {
     console.error("🔥 Lỗi getPosts:", e.message);
-    res.status(500).json({ success: false, message: "Lỗi hệ đồng bộ dữ liệu" });
+    res.status(500).json({ success: false, message: "Lỗi đồng bộ dữ liệu" });
   }
 };
 
-// 2. Tạo bài viết mới (Fix lỗi JSON.parse)
+// 🔥 2. MỚI: Lấy chi tiết bài viết 
+exports.getPostDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const post = await Post.findById(id)
+      .populate("user_id", "name avatar")
+      .populate("category_id", "name")
+      .lean();
+
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+    }
+
+    // Format dữ liệu giống như getPosts để App dễ xử lý
+    const data = {
+      ...post,
+      id: post._id,
+      images: (post.images || []).map(img => toPublicUrl(req, img)),
+      video: post.video ? toPublicUrl(req, post.video) : null,
+      author: post.user_id ? { 
+        ...post.user_id, 
+        avatar: toPublicUrl(req, post.user_id.avatar) 
+      } : null,
+      category_name: post.category_id ? post.category_id.name : "Chưa phân loại"
+    };
+
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("🔥 Lỗi getPostDetail:", e.message);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ khi lấy chi tiết" });
+  }
+};
+
+// 3. Tạo bài viết mới
 exports.createPost = async (req, res) => {
   try {
     const { title, description, ingredients, steps, category_id, user_id } = req.body;
 
-    // Kiểm tra danh mục
     if (!category_id) {
       return res.status(400).json({ success: false, message: "Vui lòng chọn danh mục" });
     }
 
-    // Xử lý ảnh từ upload.fields([{ name: 'images' }])
     let imageUrls = [];
     if (req.files && req.files["images"]) {
       imageUrls = req.files["images"].map(file => file.path);
     }
 
-    // Xử lý video từ upload.fields([{ name: 'video' }])
     let videoUrl = null;
     if (req.files && req.files["video"]) {
       videoUrl = req.files["video"][0].path;
     }
 
-    // FIX LỖI 500: Kiểm tra an toàn trước khi Parse JSON
     const safeParse = (data) => {
       try {
         if (typeof data === 'string' && (data.startsWith('[') || data.startsWith('{'))) {
           return JSON.parse(data);
         }
-        return data; // Trả về text thuần nếu không phải JSON
+        return data; 
       } catch (err) {
         return data;
       }
     };
 
     const post = await Post.create({
-      // Ưu tiên user_id từ body nếu có (do App gửi), nếu không lấy từ token
       user_id: user_id || req.user.id,
       category_id,
       title,
@@ -100,7 +128,7 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// 3. Lấy bài viết của chính tôi
+// 4. Lấy bài viết của chính tôi
 exports.getMyPosts = async (req, res) => {
   try {
     const posts = await Post.find({ user_id: req.user.id })
