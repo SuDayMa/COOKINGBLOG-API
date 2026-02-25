@@ -2,21 +2,17 @@ const mongoose = require("mongoose");
 
 const reportSchema = new mongoose.Schema(
   {
-    id: { 
-      type: String, 
-      required: true, 
-      unique: true, 
-      index: true 
-    },
     
     reporter_id: { 
-      type: String, 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User",                          
       required: true, 
       index: true 
     },
     
     post_id: { 
-      type: String, 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Post",                          
       required: true, 
       index: true 
     },
@@ -40,7 +36,8 @@ const reportSchema = new mongoose.Schema(
     },
     
     processed_by: { 
-      type: String, 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User",
       default: null 
     },
   },
@@ -50,7 +47,6 @@ const reportSchema = new mongoose.Schema(
   }
 );
 
-// Hỗ trợ tìm kiếm nhanh nếu cần quản lý nhiều báo cáo
 reportSchema.index({ reason: "text" });
 
 module.exports = mongoose.model("Report", reportSchema);

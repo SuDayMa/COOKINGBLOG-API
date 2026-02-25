@@ -1,12 +1,12 @@
 const Report = require("../models/Report"); 
 const Post = require("../models/Post");
-const mongoose = require("mongoose"); // Thêm để kiểm tra ID hợp lệ
+const mongoose = require("mongoose");
 
 exports.createReport = async (req, res) => {
   try {
     const { postId, reason, description } = req.body;
 
-    // 1. Kiểm tra đầu vào cơ bản
+    // 1. Kiểm tra đầu vào
     if (!postId || !reason) {
       return res.status(400).json({ 
         success: false, 
@@ -14,15 +14,7 @@ exports.createReport = async (req, res) => {
       });
     }
 
-    // 2. Kiểm tra xem postId gửi lên có đúng định dạng ObjectId không
-    if (!mongoose.Types.ObjectId.isValid(postId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Mã bài viết không hợp lệ" 
-      });
-    }
-
-    // 3. Tìm bài viết bằng findById
+    // 2. Tìm bài viết 
     const post = await Post.findById(postId); 
     if (!post) {
       return res.status(404).json({ 
@@ -31,10 +23,10 @@ exports.createReport = async (req, res) => {
       });
     }
 
-    // 4. Kiểm tra xem người dùng này đã báo cáo bài này (trạng thái chờ) chưa
+    // 3. Kiểm tra báo cáo trùng 
     const existingReport = await Report.findOne({
-      reporter_id: req.user.id,
-      post_id: postId,
+      reporter_id: String(req.user.id),
+      post_id: String(postId),
       status: "pending"
     });
 
@@ -45,10 +37,11 @@ exports.createReport = async (req, res) => {
       });
     }
 
-    // 5. Tạo báo cáo mới - Để Mongoose tự xử lý ép kiểu ObjectId
+    // 4. Tạo báo cáo mới 
     const report = await Report.create({
-      reporter_id: req.user.id, 
-      post_id: postId,         
+      id: `rep-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Tạo mã ID duy nhất
+      reporter_id: String(req.user.id), 
+      post_id: String(postId),          
       reason: reason,
       description: description || "",
       status: "pending"
