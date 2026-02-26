@@ -1,6 +1,7 @@
 const Post = require("../models/Post");
 const User = require("../models/User");
 const Category = require("../models/Category");
+const Follower = require("../models/Follower");
 const { toPublicUrl } = require("../utils/imageHelper");
 
 // 1. Lấy danh sách bài viết
