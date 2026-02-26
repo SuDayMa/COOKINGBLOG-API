@@ -8,6 +8,8 @@ const { toPublicUrl } = require("../utils/imageHelper");
 exports.getPosts = async (req, res) => {
   try {
     const { page = 1, limit = 10, q = "", category_id, status = "approved" } = req.query;
+    // Lấy ID người dùng hiện tại từ token (nếu có)
+    const currentUserId = req.user ? String(req.user.id) : null;
 
     const filter = { status };
     if (category_id) filter.category_id = category_id;
@@ -26,14 +28,22 @@ exports.getPosts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const items = posts.map(p => ({
-      ...p,
-      id: p._id, 
-      images: (p.images || []).map(img => toPublicUrl(req, img)),
-      video: p.video ? toPublicUrl(req, p.video) : null,
-      author: p.user_id ? { ...p.user_id, avatar: toPublicUrl(req, p.user_id.avatar) } : null,
-      category_name: p.category_id ? p.category_id.name : "Chưa phân loại"
-    }));
+    const items = posts.map(p => {
+      // Giả sử mảng chứa ID những người đã like nằm ở p.likes (kiểu Array)
+      const likesList = Array.isArray(p.likes) ? p.likes.map(id => String(id)) : [];
+      
+      return {
+        ...p,
+        id: p._id, 
+        // 🔥 Trả về true nếu ID của mình nằm trong danh sách likes
+        isLiked: currentUserId ? likesList.includes(currentUserId) : false,
+        likesCount: likesList.length,
+        images: (p.images || []).map(img => toPublicUrl(req, img)),
+        video: p.video ? toPublicUrl(req, p.video) : null,
+        author: p.user_id ? { ...p.user_id, avatar: toPublicUrl(req, p.user_id.avatar) } : null,
+        category_name: p.category_id ? p.category_id.name : "Chưa phân loại"
+      };
+    });
 
     res.json({ success: true, data: { items } });
   } catch (e) {
@@ -46,6 +56,7 @@ exports.getPosts = async (req, res) => {
 exports.getPostDetail = async (req, res) => {
   try {
     const { id } = req.params;
+    const currentUserId = req.user ? String(req.user.id) : null;
 
     const post = await Post.findById(id)
       .populate("user_id", "name avatar")
@@ -56,10 +67,13 @@ exports.getPostDetail = async (req, res) => {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
-    // Format dữ liệu giống như getPosts để App dễ xử lý
+    const likesList = Array.isArray(post.likes) ? post.likes.map(id => String(id)) : [];
+
     const data = {
       ...post,
       id: post._id,
+      isLiked: currentUserId ? likesList.includes(currentUserId) : false,
+      likesCount: likesList.length,
       images: (post.images || []).map(img => toPublicUrl(req, img)),
       video: post.video ? toPublicUrl(req, post.video) : null,
       author: post.user_id ? { 
@@ -152,20 +166,16 @@ exports.getMyPosts = async (req, res) => {
 
 exports.getFollowingPosts = async (req, res) => {
   try {
-    // 1. Lấy ID của mình và ép kiểu String chắc chắn
     const myId = String(req.user.id || req.user._id);
 
-    // 2. Tìm danh sách những người mình đang follow
     const followingList = await Follower.find({ follower_id: myId }).lean();
     
     if (!followingList || followingList.length === 0) {
       return res.json({ success: true, data: { items: [] } });
     }
 
-    // 3. Lấy mảng ID 
     const followingIds = followingList.map(f => String(f.following_id));
 
-    // 4. Truy vấn bài viết
     const posts = await Post.find({ 
       user_id: { $in: followingIds }, 
       status: "approved" 
@@ -175,17 +185,22 @@ exports.getFollowingPosts = async (req, res) => {
     .sort({ created_at: -1 })
     .lean();
 
-    const items = posts.map(p => ({
-      ...p,
-      id: p._id,
-      images: (p.images || []).map(img => toPublicUrl(req, img)),
-      video: p.video ? toPublicUrl(req, p.video) : null,
-      author: p.user_id ? { 
-        ...p.user_id, 
-        avatar: toPublicUrl(req, p.user_id.avatar) 
-      } : null,
-      category_name: p.category_id ? p.category_id.name : "Chưa phân loại"
-    }));
+    const items = posts.map(p => {
+      const likesList = Array.isArray(p.likes) ? p.likes.map(id => String(id)) : [];
+      return {
+        ...p,
+        id: p._id,
+        isLiked: likesList.includes(myId),
+        likesCount: likesList.length,
+        images: (p.images || []).map(img => toPublicUrl(req, img)),
+        video: p.video ? toPublicUrl(req, p.video) : null,
+        author: p.user_id ? { 
+          ...p.user_id, 
+          avatar: toPublicUrl(req, p.user_id.avatar) 
+        } : null,
+        category_name: p.category_id ? p.category_id.name : "Chưa phân loại"
+      };
+    });
 
     res.json({ success: true, data: { items } });
 
@@ -193,8 +208,7 @@ exports.getFollowingPosts = async (req, res) => {
     console.error("🔥 LỖI CHI TIẾT:", e); 
     res.status(500).json({ 
       success: false, 
-      message: "Lỗi lấy bài viết theo dõi",
-      debug: e.message
+      message: "Lỗi lấy bài viết theo dõi"
     });
   }
 };
