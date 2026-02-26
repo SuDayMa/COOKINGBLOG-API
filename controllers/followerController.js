@@ -99,3 +99,17 @@ exports.getFollowerList = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi lấy danh sách người theo dõi" });
   }
 };
+
+exports.checkFollowStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const followerId = String(req.user.id);
+    const existingFollow = await Follower.findOne({ 
+      follower_id: followerId, 
+      following_id: userId 
+    });
+    res.status(200).json({ success: true, isFollowing: !!existingFollow });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+};
