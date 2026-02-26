@@ -3,11 +3,11 @@ const jwt = require("jsonwebtoken");
 const User = require("../../models/User");
 const { toPublicUrl } = require("../../utils/imageHelper");
 
-
- 
+// Tạo Token truy cập
 const signToken = (user) => {
     return jwt.sign(
-        { id: user._id, role: user.role },
+        // 🔥 ÉP KIỂU ID thành String để tránh lỗi lệch kiểu dữ liệu ở Middleware
+        { id: String(user._id), role: user.role },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
@@ -18,6 +18,7 @@ exports.login = async (req, res) => {
         const email = req.body?.email?.trim().toLowerCase();
         const password = req.body?.password;
 
+        // 1. Kiểm tra đầu vào
         if (!email || !password) {
             return res.status(400).json({ 
                 success: false, 
@@ -25,6 +26,8 @@ exports.login = async (req, res) => {
             });
         }
 
+        // 2. Tìm User và kiểm tra quyền Admin
+        // Thêm .select("+password") để lấy được mật khẩu đã ẩn trong Schema
         const user = await User.findOne({ email }).select("+password");
         
         if (!user || user.role !== "admin") {
@@ -34,6 +37,7 @@ exports.login = async (req, res) => {
             });
         }
 
+        // 3. So sánh mật khẩu
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ 
@@ -42,10 +46,19 @@ exports.login = async (req, res) => {
             });
         }
 
+        // 4. Kiểm tra tài khoản có bị khóa không (An toàn thêm một bước)
+        if (user.is_blocked) {
+            return res.status(403).json({
+                success: false,
+                message: "Tài khoản Admin này hiện đang bị khóa."
+            });
+        }
+
+        // 5. Tạo Token và trả về dữ liệu
         const access_token = signToken(user);
 
         const userData = {
-            id: user._id,
+            id: String(user._id), 
             name: user.name,
             email: user.email,
             role: user.role,

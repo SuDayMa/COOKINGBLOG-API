@@ -17,14 +17,21 @@ module.exports = async function auth(req, res, next) {
 
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     
-    const user = await User.findById(payload.id)
-      .select("_id role is_blocked email")
-      .lean();
+ 
+    const user = await User.findOne({
+      $or: [
+        { _id: payload.id },
+        { id: payload.id }
+      ]
+    })
+    .select("_id role is_blocked email")
+    .lean();
     
     if (!user) {
+      console.log("❌ Không tìm thấy User với payload.id:", payload.id);
       return res.status(401).json({ 
         success: false, 
-        message: "Người dùng không tồn tại hoặc đã bị xóa" 
+        message: "Người dùng không tồn tại hoặc phiên làm việc không hợp lệ" 
       });
     }
 
@@ -36,7 +43,7 @@ module.exports = async function auth(req, res, next) {
     }
 
     req.user = { 
-      id: user._id, 
+      id: String(user._id), 
       email: user.email, 
       role: user.role 
     };
@@ -49,6 +56,6 @@ module.exports = async function auth(req, res, next) {
       return res.status(401).json({ success: false, message: "Phiên đăng nhập đã hết hạn" });
     }
     
-    return res.status(401).json({ success: false, message: "Token không hợp lệ hoặc đã bị thay đổi" });
+    return res.status(401).json({ success: false, message: "Xác thực không thành công" });
   }
 };

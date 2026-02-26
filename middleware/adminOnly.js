@@ -2,9 +2,11 @@ const User = require("../models/User");
 
 module.exports = async function adminOnly(req, res, next) {
   try {
+    // 1. Lấy thông tin từ req.user 
     const userId = req.user?.id;
     const userRoleFromToken = req.user?.role;
 
+    
     if (!userId || userRoleFromToken !== "admin") {
       return res.status(403).json({ 
         success: false, 
@@ -12,9 +14,16 @@ module.exports = async function adminOnly(req, res, next) {
       });
     }
 
-    const user = await User.findById(userId)
-      .select("role is_blocked")
-      .lean();
+    // 2. Kiểm tra thực tế trong Database 
+    
+    const user = await User.findOne({
+      $or: [
+        { _id: userId },
+        { id: userId }
+      ]
+    })
+    .select("role is_blocked")
+    .lean();
 
     if (!user) {
       return res.status(401).json({ 
@@ -23,6 +32,7 @@ module.exports = async function adminOnly(req, res, next) {
       });
     }
 
+    // 3. Kiểm tra trạng thái tài khoản
     if (user.is_blocked) {
       return res.status(403).json({ 
         success: false, 
@@ -30,6 +40,7 @@ module.exports = async function adminOnly(req, res, next) {
       });
     }
 
+    // 4. Kiểm tra lại Role thực tế
     if (user.role !== "admin") {
       return res.status(403).json({ 
         success: false, 
