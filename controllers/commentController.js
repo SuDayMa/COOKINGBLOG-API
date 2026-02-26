@@ -3,6 +3,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");       
 const Notification = require("../models/Notification");
 const { toPublicUrl } = require("../utils/imageHelper");
+const mongoose = require("mongoose");
 
 exports.getCommentsByPost = async (req, res) => {
   try {
@@ -13,18 +14,24 @@ exports.getCommentsByPost = async (req, res) => {
       .sort({ created_at: -1 })
       .lean();
 
-    // 2. Gom danh sách user_id để truy vấn một lần (tối ưu hiệu năng)
     const userIds = [...new Set(comments.map(c => c.user_id).filter(Boolean))];
-    const users = await User.find({ id: { $in: userIds } }).select("id name avatar").lean();
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const users = await User.find({ 
+      $or: [{ _id: { $in: userIds } }, { id: { $in: userIds } }] 
+    }).select("id _id name avatar").lean();
+
+    const userMap = new Map();
+    users.forEach(u => {
+      userMap.set(String(u._id), u);
+      if(u.id) userMap.set(String(u.id), u);
+    });
 
     const data = comments.map(c => {
-      const user = userMap.get(c.user_id);
+      const user = userMap.get(String(c.user_id));
       return {
         ...c,
-        id: c.id || c._id.toString(),
+        id: c._id.toString(),
         user_id: {
-          id: user?.id || c.user_id,
+          id: user?._id || user?.id || c.user_id,
           name: user?.name || "Người dùng Daily Cook",
           avatar: user?.avatar ? toPublicUrl(req, user.avatar) : null
         }
@@ -38,35 +45,39 @@ exports.getCommentsByPost = async (req, res) => {
   }
 };
 
+// 2. Tạo bình luận 
 exports.createComment = async (req, res) => {
   try {
     const { postId, content } = req.body;
+    const currentUserId = String(req.user.id);
+
     if (!postId || !content) {
       return res.status(400).json({ success: false, message: "Thiếu thông tin bình luận" });
     }
 
-    const post = await Post.findOne({ id: postId });
-    if (!post) return res.status(404).json({ success: false, message: "Bài viết không tồn tại" });
-
-    const currentUserId = String(req.user.id);
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Bài viết không tồn tại" });
+    }
 
     const cmtId = `cmt-${Date.now()}`;
     const cmt = await Comment.create({
       id: cmtId,
-      post_id: String(postId),
+      post_id: String(post._id), // Đồng bộ với _id bài viết
       user_id: currentUserId, 
-      content,
+      content: content.trim(),
       status: "visible",
     });
 
-    await Post.findOneAndUpdate({ id: postId }, { $inc: { comments: 1 } });
+    await Post.findByIdAndUpdate(post._id, { $inc: { comments: 1 } });
 
-    if (String(post.user_id) !== currentUserId) {
+    const postAuthorId = post.author?._id || post.author || post.user_id;
+    if (String(postAuthorId) !== currentUserId) {
       await Notification.create({
         id: `noti-${Date.now()}`,
         kind: "comment",
         actor_id: currentUserId,
-        recipient_id: post.user_id,
+        recipient_id: postAuthorId,
         post_id: postId,
         content: "đã bình luận bài viết của bạn",
         read: false,
@@ -76,24 +87,25 @@ exports.createComment = async (req, res) => {
     res.status(201).json({ success: true, data: cmt });
   } catch (e) {
     console.error("CREATE COMMENT ERROR:", e);
-    res.status(500).json({ success: false, message: "Lỗi khi gửi bình luận" });
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi gửi bình luận" });
   }
 };
 
+// 3. Xóa bình luận (Fix lỗi tìm kiếm ID)
 exports.deleteUserComment = async (req, res) => {
   try {
     const { id } = req.params; 
     const currentUserId = String(req.user.id);
 
-    const cmt = await Comment.findOne({ id: id });
+    const cmt = await Comment.findById(id);
     if (!cmt) return res.status(404).json({ success: false, message: "Bình luận không tồn tại" });
     
     if (String(cmt.user_id) !== currentUserId) {
-      return res.status(403).json({ success: false, message: "Bạn không có quyền xóa bình luận này" });
+      return res.status(403).json({ success: false, message: "Bạn không có quyền xóa" });
     }
 
-    await Comment.deleteOne({ id: id });
-    await Post.findOneAndUpdate({ id: cmt.post_id }, { $inc: { comments: -1 } });
+    await Comment.findByIdAndDelete(id);
+    await Post.findByIdAndUpdate(cmt.post_id, { $inc: { comments: -1 } });
 
     res.json({ success: true, message: "Đã xóa bình luận" });
   } catch (e) {
