@@ -6,13 +6,14 @@ const { toPublicUrl } = require("../utils/imageHelper");
 
 exports.getCommentsByPost = async (req, res) => {
   try {
-    const { postId } = req.query; 
+    const { postId } = req.query;
     if (!postId) return res.status(400).json({ success: false, message: "Thiếu postId" });
 
     const comments = await Comment.find({ post_id: String(postId) })
       .sort({ created_at: -1 })
       .lean();
 
+    // 2. Gom danh sách user_id để truy vấn một lần (tối ưu hiệu năng)
     const userIds = [...new Set(comments.map(c => c.user_id).filter(Boolean))];
     const users = await User.find({ id: { $in: userIds } }).select("id name avatar").lean();
     const userMap = new Map(users.map(u => [u.id, u]));
@@ -22,11 +23,11 @@ exports.getCommentsByPost = async (req, res) => {
       return {
         ...c,
         id: c.id || c._id.toString(),
-        author: user ? {
-          id: user.id,
-          name: user.name,
-          avatar: toPublicUrl(req, user.avatar)
-        } : { name: "Người dùng hệ thống", avatar: null }
+        user_id: {
+          id: user?.id || c.user_id,
+          name: user?.name || "Người dùng Daily Cook",
+          avatar: user?.avatar ? toPublicUrl(req, user.avatar) : null
+        }
       };
     });
 
