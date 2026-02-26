@@ -5,6 +5,7 @@ const upload = require("../../utils/fileUpload");
 const auth = require("../../middleware/auth"); 
 const userController = require("../../controllers/userController");
 
+router.get("/", userController.getAllUsers);
 router.get("/:id", userController.getPublicProfile);
 router.get("/:id/posts", userController.getUserPosts);
 router.put("/profile", auth, userController.updateProfile);

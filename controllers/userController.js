@@ -65,6 +65,32 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+// LẤY DANH SÁCH TẤT CẢ NGƯỜI DÙNG 
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("name avatar bio followerCount postCount")
+      .lean();
+
+    const data = users.map(user => ({
+      ...user,
+      id: user._id,
+      avatar: toPublicUrl(req, user.avatar)
+    }));
+
+    res.status(200).json({ 
+      success: true, 
+      data: data 
+    });
+  } catch (e) {
+    console.error("❌ Lỗi getAllUsers:", e);
+    res.status(500).json({ 
+      success: false, 
+      message: "Không thể lấy danh sách người dùng" 
+    });
+  }
+};
+
 // LẤY BÀI VIẾT CỦA MỘT USER CỤ THỂ
 exports.getUserPosts = async (req, res) => {
   try {
