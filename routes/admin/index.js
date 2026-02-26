@@ -12,10 +12,10 @@ const adminComments = require("./comments");
 const adminReports = require("./reports");
 const adminCategories = require("./categories");
 
-router.use("/auth", adminAuth);
-
-router.use(auth, adminOnly); 
-
+router.use("/auth", adminAuth); 
+router.use(auth); 
+router.use(adminOnly); 
+// 3. Các chức năng quản trị (Chỉ Admin mới vào được)
 router.use("/dashboard", adminDashboard); 
 router.use("/posts", adminPosts);
 router.use("/users", adminUsers);
