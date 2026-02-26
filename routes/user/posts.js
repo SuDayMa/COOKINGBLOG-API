@@ -6,7 +6,7 @@ const postController = require("../../controllers/postController");
 const upload = require("../../utils/fileUpload");
 
 router.get("/me", auth, postController.getMyPosts);
-
+router.get("/following", auth, postController.getFollowingPosts); 
 router.get("/:id", postController.getPostDetail); 
 
 router.route("/")
