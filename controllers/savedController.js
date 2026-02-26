@@ -7,14 +7,15 @@ exports.toggleSave = async (req, res) => {
     const { postId } = req.body; 
     if (!postId) return res.status(400).json({ success: false, message: "Thiếu postId" });
 
-    const post = await Post.findOne({ id: postId });
+    // 🔥 SỬA: Dùng findById để tìm theo _id của MongoDB thay vì findOne({id})
+    const post = await Post.findById(postId);
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
     const userId = String(req.user.id);
-    const finalPostId = String(post.id);
+    const finalPostId = String(post._id); // 🔥 SỬA: Dùng _id
 
     const exists = await SavedPost.findOne({ 
       user_id: userId, 
@@ -26,8 +27,9 @@ exports.toggleSave = async (req, res) => {
     if (exists) {
       await SavedPost.deleteOne({ _id: exists._id });
       
-      updatedPost = await Post.findOneAndUpdate(
-        { id: finalPostId },
+      // 🔥 SỬA: Cập nhật lượt likes dùng findByIdAndUpdate
+      updatedPost = await Post.findByIdAndUpdate(
+        finalPostId,
         { $inc: { likes: -1 } },
         { new: true }
       );
@@ -37,8 +39,8 @@ exports.toggleSave = async (req, res) => {
         post_id: finalPostId 
       });
 
-      updatedPost = await Post.findOneAndUpdate(
-        { id: finalPostId },
+      updatedPost = await Post.findByIdAndUpdate(
+        finalPostId,
         { $inc: { likes: 1 } },
         { new: true }
       );
@@ -77,18 +79,20 @@ exports.getSavedPosts = async (req, res) => {
 
     const postIds = savedRecords.map(s => s.post_id);
     
-    const posts = await Post.find({ id: { $in: postIds } })
-      .select("id title image video post_type likes status")
+    // 🔥 SỬA: Dùng _id thay vì id trong query $in
+    const posts = await Post.find({ _id: { $in: postIds } })
+      .select("title image video post_type likes status")
       .lean();
 
-    const postMap = new Map(posts.map(p => [p.id, p]));
+    const postMap = new Map(posts.map(p => [String(p._id), p]));
 
     const items = savedRecords
       .map(s => {
-        const p = postMap.get(s.post_id);
+        const p = postMap.get(String(s.post_id));
         if (!p) return null;
         return {
           ...p,
+          id: p._id, // 🔥 Trả về id cho frontend dễ xài
           image: toPublicUrl(req, p.image),
           video: p.video || null,
           saved: true 
