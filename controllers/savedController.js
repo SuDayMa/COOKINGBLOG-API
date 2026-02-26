@@ -1,25 +1,31 @@
 const SavedPost = require("../models/SavedPost");
 const Post = require("../models/Post");
 const { toPublicUrl } = require("../utils/imageHelper");
+const mongoose = require("mongoose");
 
+// 1. TOGGLE LIKE/SAVE (Thả tim & Lưu)
 exports.toggleSave = async (req, res) => {
   try {
-    const { postId } = req.body; 
-    if (!postId) return res.status(400).json({ success: false, message: "Thiếu postId" });
+    const { postId } = req.body;
+    const userId = req.user.id;
 
-    // 🔥 SỬA: Dùng findById để tìm theo _id của MongoDB thay vì findOne({id})
+    if (!postId) {
+      return res.status(400).json({ success: false, message: "Thiếu postId" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ success: false, message: "ID bài viết không hợp lệ" });
+    }
+
+    // Tìm bài viết
     const post = await Post.findById(postId);
-
     if (!post) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
     }
 
-    const userId = String(req.user.id);
-    const finalPostId = String(post._id); // 🔥 SỬA: Dùng _id
-
     const exists = await SavedPost.findOne({ 
       user_id: userId, 
-      post_id: finalPostId 
+      post_id: postId 
     });
 
     let updatedPost;
@@ -27,46 +33,52 @@ exports.toggleSave = async (req, res) => {
     if (exists) {
       await SavedPost.deleteOne({ _id: exists._id });
       
-      // 🔥 SỬA: Cập nhật lượt likes dùng findByIdAndUpdate
       updatedPost = await Post.findByIdAndUpdate(
-        finalPostId,
+        postId,
         { $inc: { likes: -1 } },
         { new: true }
       );
     } else {
       await SavedPost.create({ 
         user_id: userId, 
-        post_id: finalPostId 
+        post_id: postId,
+        saved_at: new Date()
       });
 
       updatedPost = await Post.findByIdAndUpdate(
-        finalPostId,
+        postId,
         { $inc: { likes: 1 } },
         { new: true }
       );
     }
 
-    const finalLikes = updatedPost && updatedPost.likes ? Math.max(0, updatedPost.likes) : 0;
+    const finalLikes = updatedPost && typeof updatedPost.likes === 'number' 
+      ? Math.max(0, updatedPost.likes) 
+      : 0;
 
     return res.json({ 
       success: true, 
       message: exists ? "Đã bỏ lưu" : "Đã lưu bài viết", 
       data: { 
-        postId: finalPostId,
+        postId: postId,
         saved: !exists, 
         likes: finalLikes
       } 
     });
 
   } catch (e) {
-    console.error("Lỗi Toggle Save:", e);
-    res.status(500).json({ success: false, message: "Lỗi hệ thống xử lý bài viết" });
+    console.error("❌ Lỗi Toggle Save:", e.message);
+    res.status(500).json({ 
+      success: false, 
+      message: "Lỗi hệ thống: " + e.message 
+    });
   }
 };
 
+// 2. LẤY DANH SÁCH BÀI VIẾT ĐÃ LƯU (Có phân trang)
 exports.getSavedPosts = async (req, res) => {
   try {
-    const userId = String(req.user.id);
+    const userId = req.user.id;
     const page = Math.max(parseInt(req.query.page || "1"), 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || "10"), 1), 50);
 
@@ -79,11 +91,12 @@ exports.getSavedPosts = async (req, res) => {
 
     const postIds = savedRecords.map(s => s.post_id);
     
-    // 🔥 SỬA: Dùng _id thay vì id trong query $in
+    // Lấy thông tin bài viết từ danh sách ID đã lưu
     const posts = await Post.find({ _id: { $in: postIds } })
       .select("title image video post_type likes status")
       .lean();
 
+    // Tạo Map để map bài viết vào bản ghi lưu nhanh hơn
     const postMap = new Map(posts.map(p => [String(p._id), p]));
 
     const items = savedRecords
@@ -92,7 +105,7 @@ exports.getSavedPosts = async (req, res) => {
         if (!p) return null;
         return {
           ...p,
-          id: p._id, // 🔥 Trả về id cho frontend dễ xài
+          id: p._id,
           image: toPublicUrl(req, p.image),
           video: p.video || null,
           saved: true 
@@ -100,21 +113,29 @@ exports.getSavedPosts = async (req, res) => {
       })
       .filter(Boolean);
 
-    res.json({ success: true, data: { page, limit, total, items } });
+    res.json({ 
+      success: true, 
+      data: { page, limit, total, items } 
+    });
   } catch (e) {
-    console.error("Lỗi getSavedPosts:", e);
+    console.error("❌ Lỗi getSavedPosts:", e.message);
     res.status(500).json({ success: false, message: "Lỗi tải danh sách bài đã lưu" });
   }
 };
 
+// 3. KIỂM TRA TRẠNG THÁI LƯU CỦA 1 BÀI VIẾT
 exports.checkSaved = async (req, res) => {
   try {
-    const userId = String(req.user.id);
+    const userId = req.user.id;
     const { postId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ success: false, message: "ID không hợp lệ" });
+    }
 
     const exists = await SavedPost.findOne({ 
       user_id: userId, 
-      post_id: String(postId) 
+      post_id: postId 
     });
 
     res.json({ 
@@ -122,6 +143,7 @@ exports.checkSaved = async (req, res) => {
       data: { postId, saved: !!exists } 
     });
   } catch (e) {
+    console.error("❌ Lỗi checkSaved:", e.message);
     res.status(500).json({ success: false, message: "Lỗi kiểm tra trạng thái lưu" });
   }
 };
