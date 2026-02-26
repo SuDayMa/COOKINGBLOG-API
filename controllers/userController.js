@@ -68,7 +68,7 @@ exports.updateProfile = async (req, res) => {
 // LẤY DANH SÁCH TẤT CẢ NGƯỜI DÙNG 
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find()
+    const users = await User.find({ role: 'user' }) 
       .select("name avatar bio followerCount postCount")
       .lean();
 
@@ -83,11 +83,7 @@ exports.getAllUsers = async (req, res) => {
       data: data 
     });
   } catch (e) {
-    console.error("❌ Lỗi getAllUsers:", e);
-    res.status(500).json({ 
-      success: false, 
-      message: "Không thể lấy danh sách người dùng" 
-    });
+    res.status(500).json({ success: false, message: "Lỗi lấy danh sách người dùng" });
   }
 };
 
