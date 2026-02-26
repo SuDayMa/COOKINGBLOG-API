@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const mongoose = require("mongoose"); 
 
 module.exports = async function adminOnly(req, res, next) {
   try {
@@ -6,7 +7,6 @@ module.exports = async function adminOnly(req, res, next) {
     const userId = req.user?.id;
     const userRoleFromToken = req.user?.role;
 
-    
     if (!userId || userRoleFromToken !== "admin") {
       return res.status(403).json({ 
         success: false, 
@@ -14,16 +14,22 @@ module.exports = async function adminOnly(req, res, next) {
       });
     }
 
-    // 2. Kiểm tra thực tế trong Database 
+    // 2. Chuẩn bị truy vấn thông minh
     
-    const user = await User.findOne({
-      $or: [
-        { _id: userId },
-        { id: userId }
-      ]
-    })
-    .select("role is_blocked")
-    .lean();
+    let query = { id: userId };
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      query = {
+        $or: [
+          { _id: userId },
+          { id: userId }
+        ]
+      };
+    }
+
+    // 3. Kiểm tra thực tế trong Database
+    const user = await User.findOne(query)
+      .select("role is_blocked")
+      .lean();
 
     if (!user) {
       return res.status(401).json({ 
@@ -32,7 +38,7 @@ module.exports = async function adminOnly(req, res, next) {
       });
     }
 
-    // 3. Kiểm tra trạng thái tài khoản
+    // 4. Kiểm tra trạng thái tài khoản (Dựa trên field is_blocked trong DB)
     if (user.is_blocked) {
       return res.status(403).json({ 
         success: false, 
@@ -40,7 +46,7 @@ module.exports = async function adminOnly(req, res, next) {
       });
     }
 
-    // 4. Kiểm tra lại Role thực tế
+    // 5. Kiểm tra lại Role thực tế (Dựa trên field role trong DB)
     if (user.role !== "admin") {
       return res.status(403).json({ 
         success: false, 

@@ -6,7 +6,6 @@ const { toPublicUrl } = require("../../utils/imageHelper");
 // Tạo Token truy cập
 const signToken = (user) => {
     return jwt.sign(
-        // 🔥 ÉP KIỂU ID thành String để tránh lỗi lệch kiểu dữ liệu ở Middleware
         { id: String(user._id), role: user.role },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
@@ -27,7 +26,6 @@ exports.login = async (req, res) => {
         }
 
         // 2. Tìm User và kiểm tra quyền Admin
-        // Thêm .select("+password") để lấy được mật khẩu đã ẩn trong Schema
         const user = await User.findOne({ email }).select("+password");
         
         if (!user || user.role !== "admin") {
