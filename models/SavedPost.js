@@ -2,13 +2,6 @@ const mongoose = require("mongoose");
 
 const savedPostSchema = new mongoose.Schema(
   {
-    id: { 
-      type: String, 
-      required: true, 
-      unique: true, 
-      index: true 
-    },
-    
     user_id: { 
       type: String, 
       required: true, 
@@ -27,6 +20,8 @@ const savedPostSchema = new mongoose.Schema(
     },
   },
   { 
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
     timestamps: false,
     versionKey: false 
   }
