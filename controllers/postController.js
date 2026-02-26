@@ -151,39 +151,49 @@ exports.getMyPosts = async (req, res) => {
 
 exports.getFollowingPosts = async (req, res) => {
   try {
-    const followerId = String(req.user.id || req.user._id);
+    // 1. Lấy ID của mình và ép kiểu String chắc chắn
+    const myId = String(req.user.id || req.user._id);
 
-    // 1. Tìm danh sách ID những người mà Sự đang follow
-    const followingList = await Follower.find({ follower_id: followerId }).lean();
-    const followingIds = followingList.map(f => f.following_id);
-
-    if (followingIds.length === 0) {
+    // 2. Tìm danh sách những người mình đang follow
+    const followingList = await Follower.find({ follower_id: myId }).lean();
+    
+    if (!followingList || followingList.length === 0) {
       return res.json({ success: true, data: { items: [] } });
     }
 
-    // 2. Lấy bài viết của những người đó
+    // 3. Lấy mảng ID 
+    const followingIds = followingList.map(f => String(f.following_id));
+
+    // 4. Truy vấn bài viết
     const posts = await Post.find({ 
-      user_id: { $in: followingIds },
+      user_id: { $in: followingIds }, 
       status: "approved" 
     })
-    .populate("user_id", "name avatar")
+    .populate("user_id", "name avatar") 
     .populate("category_id", "name")
     .sort({ created_at: -1 })
     .lean();
 
-    // 3. Format lại URL ảnh/video giống các hàm khác
     const items = posts.map(p => ({
       ...p,
       id: p._id,
       images: (p.images || []).map(img => toPublicUrl(req, img)),
       video: p.video ? toPublicUrl(req, p.video) : null,
-      author: p.user_id ? { ...p.user_id, avatar: toPublicUrl(req, p.user_id.avatar) } : null,
+      author: p.user_id ? { 
+        ...p.user_id, 
+        avatar: toPublicUrl(req, p.user_id.avatar) 
+      } : null,
       category_name: p.category_id ? p.category_id.name : "Chưa phân loại"
     }));
 
     res.json({ success: true, data: { items } });
+
   } catch (e) {
-    console.error("🔥 Lỗi getFollowingPosts:", e.message);
-    res.status(500).json({ success: false, message: "Lỗi lấy bài viết theo dõi" });
+    console.error("🔥 LỖI CHI TIẾT:", e); 
+    res.status(500).json({ 
+      success: false, 
+      message: "Lỗi lấy bài viết theo dõi",
+      debug: e.message
+    });
   }
 };
