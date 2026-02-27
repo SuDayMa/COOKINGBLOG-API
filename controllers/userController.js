@@ -113,18 +113,21 @@ exports.deleteMyAccount = async (req, res) => {
 
     await Post.deleteMany({ user_id: userId });
 
+    const Comment = require("../models/Comment"); 
+    await Comment.deleteMany({ user_id: userId });
+ 
     await User.findByIdAndDelete(userId);
 
     res.status(200).json({
       success: true,
-      message: "Tài khoản và toàn bộ dữ liệu đã được xóa vĩnh viễn"
+      message: "Tài khoản và toàn bộ bài viết, bình luận đã được xóa vĩnh viễn"
     });
 
   } catch (error) {
     console.error("Lỗi xóa tài khoản:", error);
     res.status(500).json({
       success: false,
-      message: "Không thể xóa tài khoản"
+      message: "Không thể xóa tài khoản. Vui lòng thử lại sau!"
     });
   }
 };
