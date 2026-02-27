@@ -41,7 +41,7 @@ exports.createCategory = async (req, res) => {
 
 exports.updateCategory = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // id này là "cat-xxx"
     const { name } = req.body;
     
     const updateData = {};
@@ -49,21 +49,21 @@ exports.updateCategory = async (req, res) => {
       updateData.name = name;
       updateData.slug = slugify(name, { lower: true, locale: 'vi' });
     }
+    
     if (req.file) {
       updateData.image = req.file.path;
     }
 
     const updated = await Category.findOneAndUpdate(
-      { id: id },
+      { id: id }, 
       { $set: updateData },
       { new: true }
     );
 
-    if (!updated) return res.status(404).json({ success: false, message: "Không tìm thấy danh mục" });
-
+    if (!updated) return res.status(404).json({ success: false, message: "Không tìm thấy" });
     res.json({ success: true, data: updated });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Lỗi khi cập nhật danh mục" });
+    res.status(500).json({ success: false, message: "Lỗi Server" });
   }
 };
 
