@@ -106,3 +106,25 @@ exports.getUserPosts = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi lấy danh sách bài viết" });
   }
 };
+
+exports.deleteMyAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await Post.deleteMany({ user_id: userId });
+
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Tài khoản và toàn bộ dữ liệu đã được xóa vĩnh viễn"
+    });
+
+  } catch (error) {
+    console.error("Lỗi xóa tài khoản:", error);
+    res.status(500).json({
+      success: false,
+      message: "Không thể xóa tài khoản"
+    });
+  }
+};
