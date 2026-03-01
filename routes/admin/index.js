@@ -11,16 +11,18 @@ const adminUsers = require("./users");
 const adminComments = require("./comments");
 const adminReports = require("./reports");
 const adminCategories = require("./categories");
+const adminNotifications = require("./notifications"); 
 
 router.use("/auth", adminAuth); 
 router.use(auth); 
 router.use(adminOnly); 
-// 3. Các chức năng quản trị (Chỉ Admin mới vào được)
+
 router.use("/dashboard", adminDashboard); 
 router.use("/posts", adminPosts);
 router.use("/users", adminUsers);
 router.use("/comments", adminComments);
 router.use("/reports", adminReports);
 router.use("/categories", adminCategories);
+router.use("/notifications", adminNotifications); 
 
 module.exports = router;

@@ -11,14 +11,18 @@ const notificationSchema = new mongoose.Schema(
 
     kind: { 
       type: String, 
-      enum: ["post", "comment", "follow", "report", "like"], 
+      enum: [
+        "post", "comment", "follow", "report", "like", 
+        "post_approved", "post_rejected", "post_pending", 
+        "warning" ,
+        "system"
+      ], 
       required: true 
     },
 
     actor_id: { 
       type: String, 
-      required: true, 
-      index: true 
+      required: false, 
     }, 
 
     recipient_id: { 
@@ -29,6 +33,9 @@ const notificationSchema = new mongoose.Schema(
 
     post_id: { type: String, default: null, index: true },
     comment_id: { type: String, default: null, index: true },
+
+    post_title: { type: String, default: null },
+    post_image: { type: String, default: null },
 
     content: { type: String, required: true }, 
     read: { type: Boolean, default: false },   

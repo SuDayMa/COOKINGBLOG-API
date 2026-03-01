@@ -3,6 +3,7 @@ const User = require("../models/User");
 const Category = require("../models/Category");
 const Follower = require("../models/Follower");
 const { toPublicUrl } = require("../utils/imageHelper");
+const Notification = require("../models/Notification");
 
 // 1. Lấy danh sách bài viết
 exports.getPosts = async (req, res) => {
@@ -120,6 +121,7 @@ exports.createPost = async (req, res) => {
       }
     };
 
+    // 1. Lưu bài viết vào DB
     const post = await Post.create({
       user_id: user_id || req.user.id,
       category_id,
@@ -128,8 +130,20 @@ exports.createPost = async (req, res) => {
       ingredients: safeParse(ingredients),
       steps: safeParse(steps),
       images: imageUrls,
-      video: videoUrl,  
+      video: videoUrl,   
       status: "pending" 
+    });
+
+    
+    await Notification.create({
+      id: `pending-${Date.now()}`,
+      recipient_id: String(user_id || req.user.id),
+      kind: 'post_pending', // Loại này Sự đã thêm vào Enum trong Model rồi đúng không?
+      post_id: String(post._id),
+      post_title: post.title,
+      post_image: imageUrls.length > 0 ? imageUrls[0] : null,
+      content: "Bài viết của bạn đã được gửi và đang chờ quản trị viên phê duyệt.",
+      read: false
     });
 
     res.status(201).json({ success: true, data: post });

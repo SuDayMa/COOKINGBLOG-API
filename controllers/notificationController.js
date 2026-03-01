@@ -2,17 +2,18 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { toPublicUrl } = require("../utils/imageHelper");
 
-// 1. LẤY DANH SÁCH THÔNG BÁO
+// 1. LẤY DANH SÁCH THÔNG BÁO (Đã cập nhật logic thời gian và Thumbnail)
 exports.getMyNotifications = async (req, res) => {
   try {
     const userId = String(req.user.id);
 
-    // Lấy thông báo
+    // Lấy 50 thông báo mới nhất của user
     const notifications = await Notification.find({ recipient_id: userId })
-      .sort({ created_at: -1 })
+      .sort({ created_at: -1 }) // Sắp xếp mới nhất lên đầu để Frontend tính "Hôm nay"
       .limit(50)
       .lean();
 
+    // Thu thập danh sách actor_id để lấy thông tin người dùng một lần (tối ưu performance)
     const actorIds = [...new Set(notifications.map(n => n.actor_id).filter(Boolean))];
     const actors = await User.find({ id: { $in: actorIds } }).select("id name avatar").lean();
     const actorMap = new Map(actors.map(u => [u.id, u]));
@@ -24,14 +25,20 @@ exports.getMyNotifications = async (req, res) => {
 
     const data = notifications.map(n => {
       const actor = actorMap.get(n.actor_id);
+      
       return {
-        ...n,
         id: n.id || n._id.toString(),
-        actor: actor ? {
+        type: n.kind, 
+        targetTitle: n.post_title,
+        content: n.content, 
+        createdAt: n.created_at, 
+        isRead: n.read,
+        postImage: n.post_image ? toPublicUrl(req, n.post_image) : null, 
+        user: actor ? {
           id: actor.id,
           name: actor.name,
           avatar: toPublicUrl(req, actor.avatar)
-        } : { name: "Hệ thống", avatar: null }
+        } : { name: "Hệ thống DailyCook", avatar: null }
       };
     });
 
@@ -52,8 +59,9 @@ exports.markAsRead = async (req, res) => {
     const userId = String(req.user.id);
     
     const filter = { recipient_id: userId };
+
     if (id !== "all") {
-      filter.id = id; 
+      filter._id = id; 
     }
 
     const result = await Notification.updateMany(filter, { $set: { read: true } });

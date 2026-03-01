@@ -1,9 +1,10 @@
 const SavedPost = require("../models/SavedPost");
 const Post = require("../models/Post");
+const Notification = require("../models/Notification");
 const { toPublicUrl } = require("../utils/imageHelper");
 const mongoose = require("mongoose");
 
-// 1. TOGGLE LIKE/SAVE (Thả tim & Lưu)
+// 1. TOGGLE LIKE/SAVE (Cập nhật để đồng bộ màu sắc Frontend)
 exports.toggleSave = async (req, res) => {
   try {
     const { postId } = req.body;
@@ -17,7 +18,6 @@ exports.toggleSave = async (req, res) => {
       return res.status(400).json({ success: false, message: "ID bài viết không hợp lệ" });
     }
 
-    // Tìm bài viết
     const post = await Post.findById(postId);
     if (!post) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
@@ -29,9 +29,12 @@ exports.toggleSave = async (req, res) => {
     });
 
     let updatedPost;
+    let isNowSaved = false; // Biến trạng thái để trả về cho Client
 
     if (exists) {
+      // TRƯỜNG HỢP: BỎ LIKE/LƯU
       await SavedPost.deleteOne({ _id: exists._id });
+      isNowSaved = false; 
       
       updatedPost = await Post.findByIdAndUpdate(
         postId,
@@ -39,29 +42,47 @@ exports.toggleSave = async (req, res) => {
         { new: true }
       );
     } else {
+      // TRƯỜNG HỢP: LIKE/LƯU MỚI
       await SavedPost.create({ 
         user_id: userId, 
         post_id: postId,
         saved_at: new Date()
       });
+      isNowSaved = true;
 
       updatedPost = await Post.findByIdAndUpdate(
         postId,
         { $inc: { likes: 1 } },
         { new: true }
       );
+
+      // TẠO THÔNG BÁO (Giữ nguyên logic của Sự)
+      if (String(post.author_id || post.user_id) !== String(userId)) {
+        await Notification.create({
+          id: Date.now().toString(),
+          recipient_id: String(post.author_id || post.user_id),
+          actor_id: String(userId),
+          kind: 'like',
+          post_id: String(postId),
+          post_title: post.title,
+          post_image: Array.isArray(post.images) ? post.images[0] : post.image,
+          content: "đã thích bài viết của bạn",
+          read: false
+        });
+      }
     }
 
     const finalLikes = updatedPost && typeof updatedPost.likes === 'number' 
       ? Math.max(0, updatedPost.likes) 
       : 0;
 
+    // TRẢ VỀ DỮ LIỆU ĐỂ FRONTEND CẬP NHẬT TRẠNG THÁI TIM NGAY LẬP TỨC
     return res.json({ 
       success: true, 
-      message: exists ? "Đã bỏ lưu" : "Đã lưu bài viết", 
+      message: isNowSaved ? "Đã lưu bài viết" : "Đã bỏ lưu", 
       data: { 
         postId: postId,
-        saved: !exists, 
+        saved: isNowSaved, // Trạng thái true/false để Client tô màu
         likes: finalLikes
       } 
     });
@@ -75,7 +96,7 @@ exports.toggleSave = async (req, res) => {
   }
 };
 
-// 2. LẤY DANH SÁCH BÀI VIẾT ĐÃ LƯU (Có phân trang)
+// 2. LẤY DANH SÁCH BÀI VIẾT ĐÃ LƯU (Giữ nguyên)
 exports.getSavedPosts = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -90,13 +111,10 @@ exports.getSavedPosts = async (req, res) => {
       .lean();
 
     const postIds = savedRecords.map(s => s.post_id);
-    
-    // Lấy thông tin bài viết từ danh sách ID đã lưu
     const posts = await Post.find({ _id: { $in: postIds } })
       .select("title image video post_type likes status")
       .lean();
 
-    // Tạo Map để map bài viết vào bản ghi lưu nhanh hơn
     const postMap = new Map(posts.map(p => [String(p._id), p]));
 
     const items = savedRecords
@@ -123,7 +141,7 @@ exports.getSavedPosts = async (req, res) => {
   }
 };
 
-// 3. KIỂM TRA TRẠNG THÁI LƯU CỦA 1 BÀI VIẾT
+// 3. KIỂM TRA TRẠNG THÁI LƯU (Giữ nguyên)
 exports.checkSaved = async (req, res) => {
   try {
     const userId = req.user.id;
