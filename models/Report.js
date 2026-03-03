@@ -2,19 +2,25 @@ const mongoose = require("mongoose");
 
 const reportSchema = new mongoose.Schema(
   {
-    
     reporter_id: { 
       type: mongoose.Schema.Types.ObjectId, 
-      ref: "User",                          
+      ref: "User",                                  
       required: true, 
       index: true 
     },
     
     post_id: { 
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Post",                          
+      ref: "Post",                                  
       required: true, 
       index: true 
+    },
+
+    comment_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Comment",
+      default: null, 
+      index: true
     },
     
     reason: { 
