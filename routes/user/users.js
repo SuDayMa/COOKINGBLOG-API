@@ -10,6 +10,7 @@ const userController = require("../../controllers/userController");
 router.delete("/me", auth, userController.deleteMyAccount);
 router.put("/profile", auth, userController.updateProfile);
 router.patch("/update-avatar", auth, upload.single("avatar"), userController.updateAvatar);
+router.post("/change-password", auth, userController.changePassword);
 
 
 router.get("/", userController.getAllUsers);

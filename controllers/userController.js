@@ -1,6 +1,7 @@
 const User = require("../models/User"); 
 const Post = require("../models/Post"); 
 const { toPublicUrl } = require("../utils/imageHelper"); 
+const bcrypt = require("bcryptjs");
 
 // LẤY PROFILE CÔNG KHAI
 exports.getPublicProfile = async (req, res) => {
@@ -129,5 +130,37 @@ exports.deleteMyAccount = async (req, res) => {
       success: false,
       message: "Không thể xóa tài khoản. Vui lòng thử lại sau!"
     });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // 1. Tìm user trong DB (phải lấy cả password ra để so sánh)
+    const user = await User.findById(userId).select("+password");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Người dùng không tồn tại" });
+    }
+
+    // 2. Kiểm tra mật khẩu cũ có đúng không
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: "Mật khẩu cũ không chính xác" });
+    }
+
+    // 3. Mã hóa mật khẩu mới và lưu
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Cập nhật mật khẩu thành công 🎉"
+    });
+  } catch (e) {
+    console.error("Lỗi đổi mật khẩu:", e);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi đổi mật khẩu" });
   }
 };
