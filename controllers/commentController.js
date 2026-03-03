@@ -113,3 +113,43 @@ exports.deleteUserComment = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi hệ thống khi xóa" });
   }
 };
+
+// 4. Sửa bình luận 
+exports.updateComment = async (req, res) => {
+  try {
+    const { id } = req.params; // ID của comment cần sửa
+    const { content } = req.body; // Nội dung mới
+    const currentUserId = String(req.user.id);
+
+    if (!content) {
+      return res.status(400).json({ success: false, message: "Nội dung không được để trống" });
+    }
+
+    // 1. Tìm bình luận
+    const cmt = await Comment.findById(id);
+    if (!cmt) {
+      return res.status(404).json({ success: false, message: "Bình luận không tồn tại" });
+    }
+
+    // 2. Kiểm tra quyền (Chỉ chủ comment mới được sửa)
+    if (String(cmt.user_id) !== currentUserId) {
+      return res.status(403).json({ success: false, message: "Bạn không có quyền chỉnh sửa bình luận này" });
+    }
+
+    // 3. Cập nhật
+    cmt.content = content.trim();
+    // Nếu bạn có dùng trường updated_at thì cập nhật luôn
+    if (cmt.updated_at) cmt.updated_at = Date.now(); 
+    
+    await cmt.save();
+
+    res.json({ 
+      success: true, 
+      message: "Cập nhật bình luận thành công", 
+      data: cmt 
+    });
+  } catch (e) {
+    console.error("UPDATE COMMENT ERROR:", e);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi cập nhật bình luận" });
+  }
+};

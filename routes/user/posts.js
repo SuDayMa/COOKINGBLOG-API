@@ -20,4 +20,15 @@ router.route("/")
     postController.createPost
   );
 
+
+router.patch(
+  "/:id", 
+  auth, 
+  upload.fields([
+    { name: "images", maxCount: 10 }, 
+    { name: "video", maxCount: 1 }
+  ]), 
+  postController.updatePost // Hàm này mình sẽ viết ở Bước 2
+);
+
 module.exports = router;

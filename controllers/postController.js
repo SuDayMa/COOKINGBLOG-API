@@ -226,3 +226,81 @@ exports.getFollowingPosts = async (req, res) => {
     });
   }
 };
+
+// 🔥 HÀM MỚI: Cập nhật bài viết và đưa về trạng thái chờ duyệt
+exports.updatePost = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, ingredients, steps, category_id } = req.body;
+    const currentUserId = String(req.user.id);
+
+    // 1. Tìm bài viết cũ
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy bài viết" });
+    }
+
+    // 2. Kiểm tra quyền chủ sở hữu (Chỉ chủ bài viết mới được sửa)
+    if (String(post.user_id) !== currentUserId) {
+      return res.status(403).json({ success: false, message: "Bạn không có quyền sửa bài này" });
+    }
+
+    // 3. Xử lý ảnh/video mới (nếu có upload thêm)
+    let imageUrls = post.images; // Mặc định giữ ảnh cũ
+    if (req.files && req.files["images"]) {
+      imageUrls = req.files["images"].map(file => file.path);
+    }
+
+    let videoUrl = post.video; // Mặc định giữ video cũ
+    if (req.files && req.files["video"]) {
+      videoUrl = req.files["video"][0].path;
+    }
+
+    const safeParse = (data) => {
+      try {
+        if (typeof data === 'string' && (data.startsWith('[') || data.startsWith('{'))) {
+          return JSON.parse(data);
+        }
+        return data; 
+      } catch (err) { return data; }
+    };
+
+    // 4. CẬP NHẬT: Quan trọng nhất là đưa status về "pending"
+    const updatedPost = await Post.findByIdAndUpdate(
+      id,
+      {
+        title,
+        description,
+        ingredients: safeParse(ingredients),
+        steps: safeParse(steps),
+        category_id,
+        images: imageUrls,
+        video: videoUrl,
+        status: "pending", // 🔥 Đưa về trạng thái chờ Admin duyệt lại
+        updated_at: Date.now()
+      },
+      { new: true } // Trả về dữ liệu sau khi sửa
+    );
+
+    // 5. Gửi thông báo cho người dùng
+    await Notification.create({
+      id: `update-pending-${Date.now()}`,
+      recipient_id: currentUserId,
+      kind: 'post_pending', 
+      post_id: String(post._id),
+      post_title: post.title,
+      content: "Bài viết bạn vừa chỉnh sửa đã được gửi lại để chờ phê duyệt.",
+      read: false
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Bài viết đã được cập nhật và đang chờ duyệt lại", 
+      data: updatedPost 
+    });
+
+  } catch (e) {
+    console.error("🔥 Lỗi update bài viết:", e);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi sửa bài" });
+  }
+};
