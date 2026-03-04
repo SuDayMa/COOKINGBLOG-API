@@ -183,3 +183,80 @@ exports.getMe = async (req, res) => {
         res.status(500).json({ success: false, message: "Lỗi lấy thông tin cá nhân" });
     }
 };
+// 4. QUÊN MẬT KHẨU: Gửi mã OTP về mail cho user đã có tài khoản
+
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ success: false, message: "Vui lòng nhập Email" });
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Email không tồn tại trên hệ thống" });
+        }
+
+        // Tạo OTP 6 số và thời hạn 2 phút (120s) cho đúng ý Sự
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = Date.now() + 2 * 60 * 1000; // 2 phút
+
+        user.otp = otp;
+        user.otpExpires = otpExpires;
+        await user.save();
+
+        // Gửi mail
+        await sendOTPEmail(user.email, otp, user.name);
+
+        res.status(200).json({ success: true, message: "Mã OTP đặt lại mật khẩu đã được gửi" });
+    } catch (e) {
+        console.error("FORGOT PASSWORD ERROR:", e.message);
+        res.status(500).json({ success: false, message: "Lỗi khi gửi mã OTP" });
+    }
+};
+
+// 5. XÁC THỰC OTP QUÊN MẬT KHẨU
+exports.verifyResetOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        const user = await User.findOne({ 
+            email: email.toLowerCase().trim(),
+            otp: otp,
+            otpExpires: { $gt: Date.now() } // Kiểm tra còn hạn không
+        });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Mã OTP không đúng hoặc đã hết hạn" });
+        }
+
+        res.status(200).json({ success: true, message: "Mã OTP hợp lệ" });
+    } catch (e) {
+        res.status(500).json({ success: false, message: "Lỗi xác thực mã" });
+    }
+};
+
+// 6. ĐẶT LẠI MẬT KHẨU MỚI
+exports.resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        // Tìm user khớp cả mail và mã OTP còn hạn
+        const user = await User.findOne({ 
+            email: email.toLowerCase().trim(),
+            otp: otp,
+            otpExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Yêu cầu đã hết hạn. Vui lòng thực hiện lại" });
+        }
+
+        // Hash mật khẩu mới và lưu lại
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.otp = undefined; // Xóa OTP sau khi dùng xong
+        user.otpExpires = undefined;
+        await user.save();
+
+        res.status(200).json({ success: true, message: "Mật khẩu đã được thay đổi thành công" });
+    } catch (e) {
+        res.status(500).json({ success: false, message: "Lỗi khi đổi mật khẩu" });
+    }
+};
