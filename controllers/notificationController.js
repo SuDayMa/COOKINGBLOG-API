@@ -2,18 +2,16 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { toPublicUrl } = require("../utils/imageHelper");
 
-// 1. LẤY DANH SÁCH THÔNG BÁO (Đã cập nhật logic thời gian và Thumbnail)
+// 1. LẤY DANH SÁCH THÔNG BÁO
 exports.getMyNotifications = async (req, res) => {
   try {
     const userId = String(req.user.id);
 
-    // Lấy 50 thông báo mới nhất của user
     const notifications = await Notification.find({ recipient_id: userId })
-      .sort({ created_at: -1 }) // Sắp xếp mới nhất lên đầu để Frontend tính "Hôm nay"
+      .sort({ created_at: -1 })
       .limit(50)
       .lean();
 
-    // Thu thập danh sách actor_id để lấy thông tin người dùng một lần (tối ưu performance)
     const actorIds = [...new Set(notifications.map(n => n.actor_id).filter(Boolean))];
     const actors = await User.find({ id: { $in: actorIds } }).select("id name avatar").lean();
     const actorMap = new Map(actors.map(u => [u.id, u]));
@@ -22,6 +20,13 @@ exports.getMyNotifications = async (req, res) => {
       recipient_id: userId, 
       read: false 
     });
+
+   
+    const formatAvatar = (path) => {
+      if (!path) return null;
+      if (path.startsWith('http')) return path; 
+      return toPublicUrl(req, path); 
+    };
 
     const data = notifications.map(n => {
       const actor = actorMap.get(n.actor_id);
@@ -39,7 +44,7 @@ exports.getMyNotifications = async (req, res) => {
         user: actor ? {
           id: actor.id,
           name: actor.name,
-          avatar: toPublicUrl(req, actor.avatar)
+          avatar: formatAvatar(actor.avatar) 
         } : { name: "Hệ thống DailyCook", avatar: null }
       };
     });
@@ -55,6 +60,7 @@ exports.getMyNotifications = async (req, res) => {
   }
 };
 
+// 2. ĐÁNH DẤU ĐÃ ĐỌC
 exports.markAsRead = async (req, res) => {
   try {
     const { id } = req.params; 
@@ -63,7 +69,7 @@ exports.markAsRead = async (req, res) => {
     const filter = { recipient_id: userId };
 
     if (id !== "all") {
-      filter._id = id; 
+      filter.id = id; 
     }
 
     const result = await Notification.updateMany(filter, { $set: { read: true } });
@@ -74,6 +80,7 @@ exports.markAsRead = async (req, res) => {
       count: result.modifiedCount
     });
   } catch (e) {
+    console.error("MARK AS READ ERROR:", e);
     res.status(500).json({ success: false, message: "Lỗi cập nhật trạng thái thông báo" });
   }
 };
