@@ -12,23 +12,30 @@ exports.getMyNotifications = async (req, res) => {
       .limit(50)
       .lean();
 
+    // 1. Lấy danh sách ID người thực hiện
     const actorIds = [...new Set(notifications.map(n => n.actor_id).filter(Boolean))];
-    const actors = await User.find({ id: { $in: actorIds } }).select("id name avatar").lean();
-    const actorMap = new Map(actors.map(u => [u.id, u]));
+
+    // 2. 🔥 SỬA QUAN TRỌNG: Tìm theo '_id' thay vì 'id'
+    const actors = await User.find({ 
+      _id: { $in: actorIds } 
+    }).select("_id name avatar").lean();
+
+    // 3. 🔥 SỬA QUAN TRỌNG: Map key dùng '_id' đã convert sang String
+    const actorMap = new Map(actors.map(u => [u._id.toString(), u]));
 
     const unreadCount = await Notification.countDocuments({ 
       recipient_id: userId, 
       read: false 
     });
 
-   
     const formatAvatar = (path) => {
       if (!path) return null;
-      if (path.startsWith('http')) return path; 
-      return toPublicUrl(req, path); 
+      if (path.startsWith('http')) return path;
+      return toPublicUrl(req, path);
     };
 
     const data = notifications.map(n => {
+      // Tìm User trong map theo actor_id (lúc này đã là chuỗi String khớp nhau)
       const actor = actorMap.get(n.actor_id);
       
       return {
@@ -42,18 +49,14 @@ exports.getMyNotifications = async (req, res) => {
         postId: n.post_id, 
         actorId: n.actor_id,
         user: actor ? {
-          id: actor.id,
+          id: actor._id.toString(),
           name: actor.name,
-          avatar: formatAvatar(actor.avatar) 
+          avatar: formatAvatar(actor.avatar)
         } : { name: "Hệ thống DailyCook", avatar: null }
       };
     });
 
-    res.status(200).json({ 
-      success: true, 
-      unreadCount, 
-      data 
-    });
+    res.status(200).json({ success: true, unreadCount, data });
   } catch (e) {
     console.error("NOTIFICATION ERROR:", e);
     res.status(500).json({ success: false, message: "Lỗi lấy danh sách thông báo" });
