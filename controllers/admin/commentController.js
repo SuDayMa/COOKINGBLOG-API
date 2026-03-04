@@ -23,25 +23,32 @@ exports.getAdminComments = async (req, res) => {
         .lean()
     ]);
 
+    // 🔥 Lấy danh sách ID
     const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     const postIds = [...new Set(rows.map(r => r.post_id).filter(Boolean))];
 
     const [users, posts] = await Promise.all([
-      User.find({ id: { $in: userIds } }).select("id name avatar").lean(),
+      User.find({ _id: { $in: userIds } }).select("_id name avatar").lean(),
       Post.find({ id: { $in: postIds } }).select("id title image").lean()
     ]);
 
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
     const postMap = new Map(posts.map(p => [p.id, p]));
 
     const items = rows.map(c => {
-      const u = userMap.get(c.user_id);
-      const p = postMap.get(c.post_id);
+      const u = userMap.get(String(c.user_id));
+      const p = postMap.get(String(c.post_id));
+
       return {
         ...c,
         id: c.id || c._id.toString(),
+        user_name: u ? u.name : "Người dùng không tồn tại",
+        user_avatar: u ? toPublicUrl(req, u.avatar) : null,
+        user_id: c.user_id,
         user: u ? { ...u, avatar: toPublicUrl(req, u.avatar) } : { name: "N/A", avatar: null },
         post: p ? { ...p, image: toPublicUrl(req, p.image) } : { title: "Bài viết đã bị xóa", image: null },
+        post_title: p ? p.title : "Bài viết không tồn tại",
+        post_id: c.post_id
       };
     });
 
