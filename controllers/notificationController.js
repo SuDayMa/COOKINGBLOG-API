@@ -34,6 +34,8 @@ exports.getMyNotifications = async (req, res) => {
         createdAt: n.created_at, 
         isRead: n.read,
         postImage: n.post_image ? toPublicUrl(req, n.post_image) : null, 
+        postId: n.post_id, 
+        actorId: n.actor_id,
         user: actor ? {
           id: actor.id,
           name: actor.name,
